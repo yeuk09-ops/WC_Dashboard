@@ -954,18 +954,19 @@ export default function Dashboard() {
         <div className="space-y-6">
           {/* AI 생성 액션플랜 */}
           <AIActionPlan
+            quarter={latestQuarter}
             data={{
               wcData: wcData,
               turnoverData: turnoverData,
-              currentQuarter: '25.3Q',
-              previousQuarter: '24.3Q',
+              currentQuarter: latestQuarter,
+              previousQuarter: prevYear,
               entities: entities,
               summary: {
-                totalWC: wcData.find(d => d.QUARTER === '25.3Q' && d.ENTITY === '연결')?.WC || 0,
-                avgCCC: turnoverData.find(t => t.quarter === '25.3Q' && t.entity === '연결')?.ccc || 0,
+                totalWC: wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === '연결')?.WC || 0,
+                avgCCC: turnoverData.find(t => t.quarter === latestQuarter && t.entity === '연결')?.ccc || 0,
                 yoyChanges: entities.slice(0, -1).map(entity => {
-                  const current = wcData.find(d => d.QUARTER === '25.3Q' && d.ENTITY === entity);
-                  const prev = wcData.find(d => d.QUARTER === '24.3Q' && d.ENTITY === entity);
+                  const current = wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === entity);
+                  const prev = wcData.find(d => d.QUARTER === prevYear && d.ENTITY === entity);
                   return {
                     entity,
                     wcChange: ((current?.WC || 0) - (prev?.WC || 0)) / (prev?.WC || 1) * 100,
@@ -974,8 +975,8 @@ export default function Dashboard() {
                   };
                 }),
                 turnoverMetrics: entities.slice(0, -1).map(entity => {
-                  const current = turnoverData.find(t => t.quarter === '25.3Q' && t.entity === entity);
-                  const prev = turnoverData.find(t => t.quarter === '24.3Q' && t.entity === entity);
+                  const current = turnoverData.find(t => t.quarter === latestQuarter && t.entity === entity);
+                  const prev = turnoverData.find(t => t.quarter === prevYear && t.entity === entity);
                   return {
                     entity,
                     currentCCC: current?.ccc || 0,

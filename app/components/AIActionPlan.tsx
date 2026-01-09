@@ -14,9 +14,10 @@ interface ActionItem {
 
 interface AIActionPlanProps {
   data: any;
+  quarter: string;
 }
 
-export default function AIActionPlan({ data }: AIActionPlanProps) {
+export default function AIActionPlan({ data, quarter }: AIActionPlanProps) {
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +31,7 @@ export default function AIActionPlan({ data }: AIActionPlanProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ data }),
+        body: JSON.stringify({ data, quarter }),
       });
       const json = await res.json();
       if (json.success) {
