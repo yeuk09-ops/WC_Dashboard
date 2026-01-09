@@ -434,14 +434,15 @@ export default function Dashboard() {
               previousCCC: prevConsolidated?.ccc || 0,
               wcChange: yoyChange(latestConsolidated?.WC || 0, prevConsolidated?.WC || 0),
               cccChange: (latestConsolidated?.ccc || 0) - (prevConsolidated?.ccc || 0),
-              entities: entityData253Q.map(e => ({
-                name: e.entity,
-                wc: e.wc,
-                change: yoyChange(
-                  wcData.find(d => d.QUARTER === '25.3Q' && d.ENTITY === e.entity)?.WC || 0,
-                  wcData.find(d => d.QUARTER === '24.3Q' && d.ENTITY === e.entity)?.WC || 0
-                )
-              }))
+              entities: entities.slice(0, -1).map(entityName => {
+                const current = wcData.find(d => d.QUARTER === '25.3Q' && d.ENTITY === entityName);
+                const prev = wcData.find(d => d.QUARTER === '24.3Q' && d.ENTITY === entityName);
+                return {
+                  name: entityName,
+                  wc: toOk(current?.WC || 0),
+                  change: yoyChange(current?.WC || 0, prev?.WC || 0)
+                };
+              })
             }}
           />
 
@@ -534,8 +535,7 @@ export default function Dashboard() {
                 }`}
                 style={{
                   backgroundColor: entityColors[e],
-                  color: 'white',
-                  ringColor: entityColors[e]
+                  color: 'white'
                 }}
               >
                 {e}
@@ -621,7 +621,12 @@ export default function Dashboard() {
               <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
                 <h3 className="font-semibold text-slate-800 mb-4">법인별 회전율수 비교 (25.3Q)</h3>
                 <ResponsiveContainer width="100%" height={220}>
-                  <RadarChart data={radarData}>
+                  <RadarChart data={selectedTurnover && consolidatedTurnover ? [
+                    { metric: 'DSO', value: selectedTurnover.dso, consolidatedValue: consolidatedTurnover.dso },
+                    { metric: 'DIO', value: selectedTurnover.dio, consolidatedValue: consolidatedTurnover.dio },
+                    { metric: 'DPO', value: selectedTurnover.dpo, consolidatedValue: consolidatedTurnover.dpo },
+                    { metric: 'CCC', value: selectedTurnover.ccc, consolidatedValue: consolidatedTurnover.ccc },
+                  ] : []}>
                     <PolarGrid stroke="#e2e8f0" />
                     <PolarAngleAxis dataKey="metric" tick={{ fontSize: 12 }} />
                     <PolarRadiusAxis tick={{ fontSize: 10 }} />
@@ -636,13 +641,7 @@ export default function Dashboard() {
                     {showConsolidated && consolidatedTurnover && (
                       <Radar
                         name="연결"
-                        dataKey="value"
-                        data={[
-                          { metric: 'DSO', value: consolidatedTurnover.dso },
-                          { metric: 'DIO', value: consolidatedTurnover.dio },
-                          { metric: 'DPO', value: consolidatedTurnover.dpo },
-                          { metric: 'CCC', value: consolidatedTurnover.ccc },
-                        ]}
+                        dataKey="consolidatedValue"
                         stroke={entityColors['연결']}
                         fill={entityColors['연결']}
                         fillOpacity={0.2}
@@ -858,9 +857,7 @@ export default function Dashboard() {
                   <Tooltip formatter={(v: number) => [`${v}억`, '']} />
                   <Legend />
                   <Bar dataKey="24.3Q" fill="#94a3b8" opacity={selectedEntity === '연결' ? 0.5 : 1} />
-                  <Bar dataKey="25.3Q" fill={(data: any) => {
-                    return data.entity === selectedEntity ? entityColors[selectedEntity] : '#3b82f6';
-                  }} />
+                  <Bar dataKey="25.3Q" fill="#3b82f6" />
                 </BarChart>
               </ResponsiveContainer>
               <div className="mt-3 flex gap-4 justify-center text-xs">
