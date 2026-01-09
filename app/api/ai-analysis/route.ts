@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     // OpenAI API 호출
     const openai = getOpenAIClient();
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o',
       messages: [
         {
           role: 'system',
@@ -114,6 +114,14 @@ export async function POST(request: NextRequest) {
 4. 예: 데이터에 "5.3"이면 → "5.3억원" (절대 52,700억원 아님)
 5. 예: 데이터에 "1424.2"이면 → "1424.2억원"
 
+**증감률 표현 주의사항:**
+1. 전년 데이터가 0이거나 매우 작은 경우, 증감률 대신 절대 금액 변화를 표현
+   - 나쁜 예: "1000% 증가"
+   - 좋은 예: "전년 0억원에서 5.3억원으로 증가"
+2. 비중이 5% 미만인 작은 법인의 경우:
+   - 백분율보다 절대 금액 변화를 우선 표현
+3. 비정상적으로 큰 증감률(100% 이상)은 반드시 절대 금액과 함께 표현
+
 **절대 금지 사항:**
 1. 근거 없는 "업계 평균", "업계 목표" 수치 언급 금지
 2. 출처가 명확하지 않은 벤치마크 수치 사용 금지
@@ -129,7 +137,7 @@ export async function POST(request: NextRequest) {
         }
       ],
       temperature: 0.7,
-      max_tokens: 1200,
+      max_tokens: 1500,
     });
 
     const analysis = completion.choices[0]?.message?.content || 'AI 분석을 생성할 수 없습니다.';
