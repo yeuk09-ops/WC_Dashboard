@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { loadAICache, updateAICachePartial } from '@/lib/ai-cache';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// OpenAI 클라이언트를 lazy하게 초기화
+function getOpenAIClient() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY || '',
+  });
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,7 +34,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!openai.apiKey) {
+    if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
         { success: false, error: 'OpenAI API Key가 설정되지 않았습니다.' },
         { status: 500 }
@@ -39,6 +42,8 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`🤖 AI 액션플랜 생성 중: ${quarter}`);
+
+    const openai = getOpenAIClient();
 
     const prompt = `당신은 F&F 그룹의 재무 분석 전문가입니다. 다음 운전자본 데이터를 분석하여 우선순위별 액션플랜을 JSON 형식으로 생성해주세요.
 

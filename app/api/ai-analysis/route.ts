@@ -9,10 +9,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { loadAICache, updateAICachePartial } from '@/lib/ai-cache';
 
-// OpenAI 클라이언트 초기화
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// OpenAI 클라이언트를 lazy하게 초기화
+function getOpenAIClient() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY || '',
+  });
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -85,6 +87,7 @@ export async function POST(request: NextRequest) {
     }
 
     // OpenAI API 호출
+    const openai = getOpenAIClient();
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
