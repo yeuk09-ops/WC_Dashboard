@@ -49,6 +49,13 @@ export default function Dashboard() {
   const tabs = ['📊 Overview', '📈 회전율', '📊 추세', '🎯 액션플랜'];
   const entities = ['국내(OC)', '중국', '홍콩', 'ST(미국)', '기타', '연결'];
   const quarters = ['24.1Q', '24.2Q', '24.3Q', '24.4Q', '25.1Q', '25.2Q', '25.3Q'];
+  
+  // 최신 분기 자동 감지
+  const latestQuarter = quarters[quarters.length - 1];
+  const prevYear = latestQuarter.replace(/(\d{2})\./, (m, y) => {
+    const prevY = (parseInt(y) - 1).toString().padStart(2, '0');
+    return `${prevY}.`;
+  });
 
   useEffect(() => {
     async function fetchData() {
@@ -80,8 +87,8 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
-  const latestConsolidated = wcData.find(d => d.QUARTER === '25.3Q' && d.ENTITY === '연결');
-  const prevConsolidated = wcData.find(d => d.QUARTER === '24.3Q' && d.ENTITY === '연결');
+  const latestConsolidated = wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === '연결');
+  const prevConsolidated = wcData.find(d => d.QUARTER === prevYear && d.ENTITY === '연결');
   const yoyChange = (c: number, p: number) => p ? ((c - p) / p * 100) : 0;
 
   const consolidatedTrend = wcData.filter(d => d.ENTITY === '연결').map(d => ({
@@ -424,6 +431,7 @@ export default function Dashboard() {
           <AIInsight
             type="overview"
             title="🤖 AI 전체 분석"
+            quarter={latestQuarter}
             data={{
               currentWC: toOk(latestConsolidated?.WC || 0),
               currentReceivables: toOk(latestConsolidated?.RECEIVABLES || 0),
@@ -435,8 +443,8 @@ export default function Dashboard() {
               wcChange: yoyChange(latestConsolidated?.WC || 0, prevConsolidated?.WC || 0),
               cccChange: (latestConsolidated?.ccc || 0) - (prevConsolidated?.ccc || 0),
               entities: entities.slice(0, -1).map(entityName => {
-                const current = wcData.find(d => d.QUARTER === '25.3Q' && d.ENTITY === entityName);
-                const prev = wcData.find(d => d.QUARTER === '24.3Q' && d.ENTITY === entityName);
+                const current = wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === entityName);
+                const prev = wcData.find(d => d.QUARTER === prevYear && d.ENTITY === entityName);
                 return {
                   name: entityName,
                   wc: toOk(current?.WC || 0),
@@ -659,20 +667,22 @@ export default function Dashboard() {
               <AIInsight
                 type="turnover"
                 title={`🤖 ${selectedEntity} AI 분석`}
+                quarter={latestQuarter}
+                context={{ entity: selectedEntity }}
                 data={{
                   entity: selectedEntity,
                   dso: selectedTurnover?.dso || 0,
                   dio: selectedTurnover?.dio || 0,
                   dpo: selectedTurnover?.dpo || 0,
                   ccc: selectedTurnover?.ccc || 0,
-                  prevDso: turnoverData.find(t => t.quarter === '24.3Q' && t.entity === selectedEntity)?.dso || 0,
-                  prevDio: turnoverData.find(t => t.quarter === '24.3Q' && t.entity === selectedEntity)?.dio || 0,
-                  prevDpo: turnoverData.find(t => t.quarter === '24.3Q' && t.entity === selectedEntity)?.dpo || 0,
-                  prevCcc: turnoverData.find(t => t.quarter === '24.3Q' && t.entity === selectedEntity)?.ccc || 0,
-                  dsoChange: (selectedTurnover?.dso || 0) - (turnoverData.find(t => t.quarter === '24.3Q' && t.entity === selectedEntity)?.dso || 0),
-                  dioChange: (selectedTurnover?.dio || 0) - (turnoverData.find(t => t.quarter === '24.3Q' && t.entity === selectedEntity)?.dio || 0),
-                  dpoChange: (selectedTurnover?.dpo || 0) - (turnoverData.find(t => t.quarter === '24.3Q' && t.entity === selectedEntity)?.dpo || 0),
-                  cccChange: (selectedTurnover?.ccc || 0) - (turnoverData.find(t => t.quarter === '24.3Q' && t.entity === selectedEntity)?.ccc || 0),
+                  prevDso: turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.dso || 0,
+                  prevDio: turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.dio || 0,
+                  prevDpo: turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.dpo || 0,
+                  prevCcc: turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.ccc || 0,
+                  dsoChange: (selectedTurnover?.dso || 0) - (turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.dso || 0),
+                  dioChange: (selectedTurnover?.dio || 0) - (turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.dio || 0),
+                  dpoChange: (selectedTurnover?.dpo || 0) - (turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.dpo || 0),
+                  cccChange: (selectedTurnover?.ccc || 0) - (turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.ccc || 0),
                 }}
               />
 
@@ -910,6 +920,8 @@ export default function Dashboard() {
           <AIInsight
             type="trend"
             title={`🤖 ${selectedEntity} 추세 AI 분석`}
+            quarter={latestQuarter}
+            context={{ entity: selectedEntity }}
             data={{
               entity: selectedEntity,
               wcTrend: quarters.map(q => {
@@ -927,11 +939,11 @@ export default function Dashboard() {
                 };
               }),
               wcTrendDirection: yoyChange(
-                wcData.find(d => d.QUARTER === '25.3Q' && d.ENTITY === selectedEntity)?.WC || 0,
-                wcData.find(d => d.QUARTER === '24.3Q' && d.ENTITY === selectedEntity)?.WC || 0
+                wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === selectedEntity)?.WC || 0,
+                wcData.find(d => d.QUARTER === prevYear && d.ENTITY === selectedEntity)?.WC || 0
               ) > 0 ? '증가 추세' : '감소 추세',
-              cccTrendDirection: ((turnoverData.find(t => t.quarter === '25.3Q' && t.entity === selectedEntity)?.ccc || 0) -
-                (turnoverData.find(t => t.quarter === '24.3Q' && t.entity === selectedEntity)?.ccc || 0)) > 0 ? '증가 추세 (악화)' : '감소 추세 (개선)',
+              cccTrendDirection: ((turnoverData.find(t => t.quarter === latestQuarter && t.entity === selectedEntity)?.ccc || 0) -
+                (turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.ccc || 0)) > 0 ? '증가 추세 (악화)' : '감소 추세 (개선)',
             }}
           />
         </div>
@@ -1055,6 +1067,7 @@ export default function Dashboard() {
           <AIInsight
             type="action"
             title="🤖 AI 액션 플랜 추천"
+            quarter={latestQuarter}
             data={{
               entities: yoyTableData.map(row => ({
                 name: row.entity,
@@ -1065,12 +1078,12 @@ export default function Dashboard() {
               issues: [
                 `연결 재고 ${yoyChange(latestConsolidated?.INVENTORY || 0, prevConsolidated?.INVENTORY || 0).toFixed(1)}% 증가`,
                 `중국 채권 ${yoyChange(
-                  wcData.find(d => d.QUARTER === '25.3Q' && d.ENTITY === '중국')?.RECEIVABLES || 0,
-                  wcData.find(d => d.QUARTER === '24.3Q' && d.ENTITY === '중국')?.RECEIVABLES || 0
+                  wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === '중국')?.RECEIVABLES || 0,
+                  wcData.find(d => d.QUARTER === prevYear && d.ENTITY === '중국')?.RECEIVABLES || 0
                 ).toFixed(1)}% 증가`,
                 `ST(미국) 운전자본 ${yoyChange(
-                  wcData.find(d => d.QUARTER === '25.3Q' && d.ENTITY === 'ST(미국)')?.WC || 0,
-                  wcData.find(d => d.QUARTER === '24.3Q' && d.ENTITY === 'ST(미국)')?.WC || 0
+                  wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === 'ST(미국)')?.WC || 0,
+                  wcData.find(d => d.QUARTER === prevYear && d.ENTITY === 'ST(미국)')?.WC || 0
                 ).toFixed(1)}% 증가`,
               ],
               currentCCC: latestConsolidated?.ccc || 0,

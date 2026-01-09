@@ -7,9 +7,11 @@ interface AIInsightProps {
   data: any;
   type: 'overview' | 'turnover' | 'trend' | 'action';
   title?: string;
+  quarter: string;
+  context?: any;
 }
 
-export default function AIInsight({ data, type, title = 'AI 인사이트' }: AIInsightProps) {
+export default function AIInsight({ data, type, title = 'AI 인사이트', quarter, context }: AIInsightProps) {
   const [analysis, setAnalysis] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
@@ -25,7 +27,7 @@ export default function AIInsight({ data, type, title = 'AI 인사이트' }: AII
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ data, type }),
+        body: JSON.stringify({ data, type, quarter, context }),
       });
 
       const result = await response.json();
