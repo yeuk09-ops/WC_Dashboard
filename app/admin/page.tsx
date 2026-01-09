@@ -15,10 +15,19 @@ export default function AdminPage() {
   const [wcData, setWcData] = useState<WCDataItem[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
+  // 관리자 페이지 활성화 여부 확인
+  const isAdminEnabled = process.env.NEXT_PUBLIC_ENABLE_ADMIN === 'true';
+
   // 관리자 비밀번호 (실제 환경에서는 환경 변수나 백엔드 인증 사용)
   const ADMIN_PASSWORD = 'fnf2025';
 
   useEffect(() => {
+    // 관리자 페이지 비활성화 시 홈으로 리다이렉트
+    if (!isAdminEnabled) {
+      router.push('/');
+      return;
+    }
+
     // 세션 확인
     const auth = sessionStorage.getItem('admin_auth');
     if (auth === 'true') {
@@ -27,7 +36,7 @@ export default function AdminPage() {
     } else {
       setDataLoading(false);
     }
-  }, []);
+  }, [isAdminEnabled, router]);
 
   const fetchData = async () => {
     try {

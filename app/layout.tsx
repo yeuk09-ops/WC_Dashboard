@@ -34,12 +34,14 @@ export default function RootLayout({
             </div>
             <div className="flex items-center gap-4">
               <div className="text-sm text-slate-500">25.3Q 기준</div>
-              <a
-                href="/admin"
-                className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded transition"
-              >
-                관리자
-              </a>
+              {process.env.NEXT_PUBLIC_ENABLE_ADMIN === 'true' && (
+                <a
+                  href="/admin"
+                  className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded transition"
+                >
+                  관리자
+                </a>
+              )}
             </div>
           </div>
         </header>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
 
 interface AIInsightProps {
@@ -17,7 +17,41 @@ export default function AIInsight({ data, type, title = 'AI 인사이트', quart
   const [error, setError] = useState<string>('');
   const [hasAnalyzed, setHasAnalyzed] = useState(false);
 
+  // 환경 변수로 AI 기능 활성화 여부 확인
+  const isAIEnabled = process.env.NEXT_PUBLIC_ENABLE_AI === 'true';
+
+  // 컴포넌트 마운트 시 캐시된 분석 결과 로드
+  useEffect(() => {
+    const loadCachedAnalysis = async () => {
+      try {
+        const response = await fetch('/api/ai-analysis', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ data, type, quarter, context, forceRegenerate: false }),
+        });
+
+        const result = await response.json();
+
+        if (result.success && result.cached) {
+          setAnalysis(result.analysis);
+          setHasAnalyzed(true);
+        }
+      } catch (err) {
+        console.log('캐시된 분석 결과 없음');
+      }
+    };
+
+    loadCachedAnalysis();
+  }, [quarter, type, context?.entity]);
+
   const fetchAnalysis = async () => {
+    if (!isAIEnabled) {
+      setError('AI 분석 기능은 개발환경에서만 사용 가능합니다.');
+      return;
+    }
+
     setLoading(true);
     setError('');
     
@@ -27,7 +61,7 @@ export default function AIInsight({ data, type, title = 'AI 인사이트', quart
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ data, type, quarter, context }),
+        body: JSON.stringify({ data, type, quarter, context, forceRegenerate: true }),
       });
 
       const result = await response.json();
@@ -53,24 +87,31 @@ export default function AIInsight({ data, type, title = 'AI 인사이트', quart
         <div className="flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-purple-600" />
           <h4 className="font-semibold text-purple-900">{title}</h4>
-        </div>
-        <button
-          onClick={fetchAnalysis}
-          disabled={loading}
-          className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white text-sm rounded-lg transition"
-        >
-          {loading ? (
-            <>
-              <RefreshCw className="w-4 h-4 animate-spin" />
-              분석 중...
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-4 h-4" />
-              {hasAnalyzed ? 'AI 재분석' : 'AI 분석'}
-            </>
+          {!isAIEnabled && hasAnalyzed && (
+            <span className="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded">
+              정적 분석
+            </span>
           )}
-        </button>
+        </div>
+        {isAIEnabled && (
+          <button
+            onClick={fetchAnalysis}
+            disabled={loading}
+            className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white text-sm rounded-lg transition"
+          >
+            {loading ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                분석 중...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                {hasAnalyzed ? 'AI 재분석' : 'AI 분석'}
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       {!hasAnalyzed && !loading && !error && (

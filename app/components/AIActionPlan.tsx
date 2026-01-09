@@ -22,7 +22,38 @@ export default function AIActionPlan({ data, quarter }: AIActionPlanProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 환경 변수로 AI 기능 활성화 여부 확인
+  const isAIEnabled = process.env.NEXT_PUBLIC_ENABLE_AI === 'true';
+
+  // 컴포넌트 마운트 시 캐시된 액션플랜 로드
+  useEffect(() => {
+    const loadCachedActionPlan = async () => {
+      try {
+        const res = await fetch('/api/ai-action-plan', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ data, quarter, forceRegenerate: false }),
+        });
+        const json = await res.json();
+        if (json.success && json.cached) {
+          setActionItems(json.actionItems);
+        }
+      } catch (err) {
+        console.log('캐시된 액션플랜 없음');
+      }
+    };
+
+    loadCachedActionPlan();
+  }, [quarter]);
+
   const fetchActionPlan = async () => {
+    if (!isAIEnabled) {
+      setError('AI 액션플랜 기능은 개발환경에서만 사용 가능합니다.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -31,7 +62,7 @@ export default function AIActionPlan({ data, quarter }: AIActionPlanProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ data, quarter }),
+        body: JSON.stringify({ data, quarter, forceRegenerate: true }),
       });
       const json = await res.json();
       if (json.success) {
@@ -91,19 +122,26 @@ export default function AIActionPlan({ data, quarter }: AIActionPlanProps) {
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-slate-800 flex items-center gap-2">
             <Bot className="w-5 h-5 text-sky-500" /> AI 생성 액션플랜
-          </h3>
-          <button
-            onClick={fetchActionPlan}
-            className="flex items-center px-3 py-1.5 bg-sky-500 text-white rounded-md text-sm font-medium hover:bg-sky-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={loading}
-          >
-            {loading ? (
-              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Bot className="w-4 h-4 mr-2" />
+            {!isAIEnabled && actionItems.length > 0 && (
+              <span className="text-xs text-sky-600 bg-sky-100 px-2 py-1 rounded">
+                정적 분석
+              </span>
             )}
-            액션플랜 생성
-          </button>
+          </h3>
+          {isAIEnabled && (
+            <button
+              onClick={fetchActionPlan}
+              className="flex items-center px-3 py-1.5 bg-sky-500 text-white rounded-md text-sm font-medium hover:bg-sky-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading}
+            >
+              {loading ? (
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Bot className="w-4 h-4 mr-2" />
+              )}
+              액션플랜 생성
+            </button>
+          )}
         </div>
 
         {error && (

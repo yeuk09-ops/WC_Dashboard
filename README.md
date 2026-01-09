@@ -11,20 +11,22 @@ F&F 그룹의 연결 운전자본을 분석하고 모니터링하는 대시보�
 - **액션플랜**: AI 기반 우선순위별 개선 과제
 
 ### 🤖 AI 인사이트
-- OpenAI GPT 기반 자동 분석
-- 분기별 캐시 시스템으로 효율적 운영
-- 재분석 기능으로 실시간 업데이트 가능
+- OpenAI GPT-4o-mini 기반 자동 분석
+- **개발환경**: AI 분석 실행 및 캐시 생성
+- **프로덕션**: 정적 캐시 파일 사용 (API 호출 없음)
+- 분기별 독립적인 분석 결과 저장
 
 ### 📁 데이터 관리
-- 엑셀 파일 업로드
-- 데이터 유효성 검증
-- 분기 자동 감지
-- 관리자 전용 페이지 (비밀번호 보호)
+- **개발환경 전용**:
+  - 엑셀 파일 업로드
+  - 데이터 유효성 검증
+  - 관리자 페이지 (비밀번호: `fnf2025`)
+- **프로덕션**: 데이터 업로드 비활성화
 
-### 🔄 분기별 관리
-- 최신 분기 자동 감지
-- 분기별 독립적인 AI 분석 캐시
-- 과거 분기 데이터 보존
+### 🔄 배포 워크플로우
+1. 개발환경에서 데이터 업로드 및 AI 분석 실행
+2. `ai-cache/*.json` 파일 Git 커밋
+3. Vercel 자동 배포 (정적 캐시 사용)
 
 ## 기술 스택
 
@@ -45,25 +47,43 @@ npm install
 
 ### 2. 환경 변수 설정
 
-`.env.local` 파일을 생성하고 다음 내용을 입력하세요:
+#### 개발 환경 (`.env.local`)
 
 ```env
-# OpenAI API 키 (필수)
+# OpenAI API 키 (개발환경 필수)
 OPENAI_API_KEY=sk-your-api-key
 
-# Mock 데이터 사용 여부
+# AI 기능 활성화
+NEXT_PUBLIC_ENABLE_AI=true
+
+# 관리자 페이지 활성화
+NEXT_PUBLIC_ENABLE_ADMIN=true
+
+# Mock 데이터 사용
 USE_MOCK_DATA=true
 
-# 매출원가율 (선택, 기본값: 0.60)
+# 매출원가율
+COGS_RATE=0.60
+```
+
+#### 프로덕션 환경 (Vercel)
+
+Vercel 대시보드 → Settings → Environment Variables에 설정:
+
+```env
+# AI 기능 비활성화 (정적 캐시만 사용)
+NEXT_PUBLIC_ENABLE_AI=false
+
+# 관리자 페이지 비활성화
+NEXT_PUBLIC_ENABLE_ADMIN=false
+
+# Mock 데이터 사용
+USE_MOCK_DATA=true
+
+# 매출원가율
 COGS_RATE=0.60
 
-# Snowflake 연결 (USE_MOCK_DATA=false일 때 필요)
-# SNOWFLAKE_ACCOUNT=your_account.ap-northeast-2.aws
-# SNOWFLAKE_USER=your_username
-# SNOWFLAKE_PASSWORD=your_password
-# SNOWFLAKE_DATABASE=FNF
-# SNOWFLAKE_SCHEMA=PRCS
-# SNOWFLAKE_WAREHOUSE=your_warehouse
+# OpenAI API 키는 설정하지 않음
 ```
 
 ### 3. 개발 서버 실행
