@@ -47,7 +47,7 @@ export default function RootLayout({
           {children}
         </main>
         <footer className="border-t border-slate-200 mt-12 py-6 text-center text-sm text-slate-500">
-          © 2025 F&F Holdings. 재무기획팀.
+          © 2025 F&F Holdings. 회계팀.
         </footer>
       </body>
     </html>
