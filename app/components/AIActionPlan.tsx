@@ -37,16 +37,19 @@ export default function AIActionPlan({ data, quarter }: AIActionPlanProps) {
           body: JSON.stringify({ data, quarter, forceRegenerate: false }),
         });
         const json = await res.json();
-        if (json.success && json.cached) {
+        if (json.success && json.actionItems && Array.isArray(json.actionItems)) {
           setActionItems(json.actionItems);
+          console.log(`✅ 액션플랜 로드 성공: ${json.actionItems.length}개 항목`);
         }
       } catch (err) {
-        console.log('캐시된 액션플랜 없음');
+        console.error('캐시된 액션플랜 로드 실패:', err);
       }
     };
 
-    loadCachedActionPlan();
-  }, [quarter]);
+    if (quarter) {
+      loadCachedActionPlan();
+    }
+  }, [quarter, data]);
 
   const fetchActionPlan = async () => {
     if (!isAIEnabled) {
