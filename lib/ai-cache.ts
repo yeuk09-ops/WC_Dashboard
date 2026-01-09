@@ -16,14 +16,24 @@ export interface AIAnalysisCache {
   actionPlanInsight?: string;
 }
 
-const CACHE_DIR = path.join(process.cwd(), 'ai-cache');
+// Vercel serverless 환경에서는 /tmp만 쓰기 가능
+const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
+const CACHE_DIR = isServerless 
+  ? path.join('/tmp', 'ai-cache')
+  : path.join(process.cwd(), 'ai-cache');
 
 /**
  * 캐시 디렉토리 생성 (없으면)
  */
 function ensureCacheDir() {
-  if (!fs.existsSync(CACHE_DIR)) {
-    fs.mkdirSync(CACHE_DIR, { recursive: true });
+  try {
+    if (!fs.existsSync(CACHE_DIR)) {
+      fs.mkdirSync(CACHE_DIR, { recursive: true });
+    }
+    return true;
+  } catch (error) {
+    console.warn('⚠️ 캐시 디렉토리 생성 실패:', error);
+    return false;
   }
 }
 
@@ -39,9 +49,13 @@ function getCacheFilePath(quarter: string): string {
 /**
  * AI 분석 결과 저장
  */
-export function saveAICache(quarter: string, cache: AIAnalysisCache): void {
+export function saveAICache(quarter: string, cache: AIAnalysisCache): boolean {
   try {
-    ensureCacheDir();
+    if (!ensureCacheDir()) {
+      console.warn(`⚠️ 캐시 디렉토리 생성 불가 (${quarter})`);
+      return false;
+    }
+    
     const filePath = getCacheFilePath(quarter);
     
     const data = {
@@ -52,9 +66,10 @@ export function saveAICache(quarter: string, cache: AIAnalysisCache): void {
     
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
     console.log(`✅ AI 캐시 저장: ${quarter} -> ${filePath}`);
+    return true;
   } catch (error) {
-    console.error(`❌ AI 캐시 저장 실패 (${quarter}):`, error);
-    throw error;
+    console.warn(`⚠️ AI 캐시 저장 실패 (${quarter}):`, error);
+    return false;
   }
 }
 
@@ -88,9 +103,13 @@ export function updateAICachePartial(
   quarter: string,
   type: 'overview' | 'turnover' | 'trend' | 'actionPlan' | 'actionPlanInsight',
   data: any
-): void {
+): boolean {
   try {
-    ensureCacheDir();
+    if (!ensureCacheDir()) {
+      console.warn(`⚠️ 캐시 디렉토리 생성 불가 (${quarter}.${type})`);
+      return false;
+    }
+    
     const filePath = getCacheFilePath(quarter);
     
     let cache: AIAnalysisCache = {
@@ -110,16 +129,17 @@ export function updateAICachePartial(
     
     fs.writeFileSync(filePath, JSON.stringify(cache, null, 2), 'utf-8');
     console.log(`✅ AI 캐시 부분 업데이트: ${quarter}.${type}`);
+    return true;
   } catch (error) {
-    console.error(`❌ AI 캐시 부분 업데이트 실패 (${quarter}.${type}):`, error);
-    throw error;
+    console.warn(`⚠️ AI 캐시 부분 업데이트 실패 (${quarter}.${type}):`, error);
+    return false;
   }
 }
 
 /**
  * AI 캐시 삭제
  */
-export function deleteAICache(quarter: string): void {
+export function deleteAICache(quarter: string): boolean {
   try {
     const filePath = getCacheFilePath(quarter);
     
@@ -127,9 +147,10 @@ export function deleteAICache(quarter: string): void {
       fs.unlinkSync(filePath);
       console.log(`✅ AI 캐시 삭제: ${quarter}`);
     }
+    return true;
   } catch (error) {
-    console.error(`❌ AI 캐시 삭제 실패 (${quarter}):`, error);
-    throw error;
+    console.warn(`⚠️ AI 캐시 삭제 실패 (${quarter}):`, error);
+    return false;
   }
 }
 
@@ -138,7 +159,9 @@ export function deleteAICache(quarter: string): void {
  */
 export function listCachedQuarters(): string[] {
   try {
-    ensureCacheDir();
+    if (!ensureCacheDir()) {
+      return [];
+    }
     
     const files = fs.readdirSync(CACHE_DIR);
     const quarters = files
@@ -147,7 +170,7 @@ export function listCachedQuarters(): string[] {
     
     return quarters;
   } catch (error) {
-    console.error('❌ 캐시 목록 조회 실패:', error);
+    console.warn('⚠️ 캐시 목록 조회 실패:', error);
     return [];
   }
 }
