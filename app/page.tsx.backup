@@ -10,8 +10,7 @@ import {
 import { TrendingUp, TrendingDown, DollarSign, Package, FileText, RefreshCw, AlertTriangle, CheckCircle, AlertCircle, Activity } from 'lucide-react';
 import AIInsight from './components/AIInsight';
 import AIActionPlan from './components/AIActionPlan';
-import BulkAIAnalysis from './components/BulkAIAnalysis';
-import type { WCDataItem, TurnoverItem} from '@/types';
+import type { WCDataItem, TurnoverItem } from '@/types';
 
 // 색상 정의
 const colors = { 
@@ -37,20 +36,6 @@ const toOk = (val: number) => Math.round(val / 10) / 10;
 const formatNum = (n: number) => n.toLocaleString('ko-KR');
 const formatOk = (n: number) => `${formatNum(toOk(n))}억`;
 
-// 자금 효과 계산 함수 (원본 데이터: 100만원 단위)
-const calculateCashImpact = (currentRevenue: number, currentCOGS: number) => {
-  const annualRevenue = currentRevenue * 4; // 분기 매출을 연간 매출로 환산 (100만원 단위)
-  const dailyRevenue = annualRevenue / 365; // 일평균 매출 (100만원 단위)
-  const annualCOGS = currentCOGS * 4; // 분기 매출원가를 연간 매출원가로 환산 (100만원 단위)
-  const dailyCOGS = annualCOGS / 365; // 일평균 매출원가 (100만원 단위)
-  
-  return {
-    dsoPerDay: dailyRevenue, // DSO 1일 단축 시 매출채권 회수 효과 (100만원 단위, AI API에서 억원으로 변환)
-    dioPerDay: dailyCOGS,    // DIO 1일 단축 시 재고자산 감소 효과 (100만원 단위)
-    dpoPerDay: dailyCOGS,    // DPO 1일 연장 시 매입채무 증가 효과 (100만원 단위)
-  };
-};
-
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState(0);
   const [wcData, setWcData] = useState<WCDataItem[]>([]);
@@ -61,7 +46,7 @@ export default function Dashboard() {
   const [showConsolidated, setShowConsolidated] = useState(true);
   const [showItems, setShowItems] = useState({ all: true, inv: true, ar: true, ap: true, wc: true });
 
-  const tabs = ['📊 Overview', '📈 회전율', '📊 추세'];
+  const tabs = ['📊 Overview', '📈 회전율', '📊 추세', '🎯 액션플랜'];
   const entities = ['국내(OC)', '중국', '홍콩', 'ST(미국)', '기타', '연결'];
   const quarters = ['24.1Q', '24.2Q', '24.3Q', '24.4Q', '25.1Q', '25.2Q', '25.3Q'];
   
@@ -172,24 +157,31 @@ export default function Dashboard() {
     };
   });
 
-  if (loading) return (
-    <div className="flex flex-col items-center justify-center h-96 space-y-4">
-      <RefreshCw className="w-12 h-12 animate-spin text-blue-500" />
-      <div className="text-center">
-        <p className="text-lg font-medium text-slate-700">데이터 로딩 중...</p>
-        <p className="text-sm text-slate-500 mt-1">잠시만 기다려주세요</p>
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 space-y-4">
+        <RefreshCw className="w-12 h-12 animate-spin text-blue-500" />
+        <div className="text-center">
+          <p className="text-lg font-medium text-slate-700">데이터 로딩 중...</p>
+          <p className="text-sm text-slate-500 mt-1">잠시만 기다려주세요</p>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
-  if (error) return (
-    <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-      <p className="text-red-600 font-medium">오류: {error}</p>
-      <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">
-        새로고침
-      </button>
-    </div>
-  );
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+        <p className="text-red-600 font-medium">오류: {error}</p>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+        >
+          새로고침
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -285,27 +277,20 @@ export default function Dashboard() {
               return (
                 <div key={idx} className="bg-white rounded-lg p-4 shadow-sm border border-slate-200">
                   <div className="flex items-start justify-between mb-2">
-                    <div className="w-full">
+                    <div>
                       <div className="text-xs text-slate-500 mb-1">{item.label}</div>
                       <div className="text-2xl font-bold text-slate-800">
                         {item.unit === '억' ? formatOk(item.value) : `${item.value}${item.unit}`}
                       </div>
                     </div>
-                    <item.icon className={`w-5 h-5 text-${item.color}-500 flex-shrink-0`} />
+                    <item.icon className={`w-5 h-5 text-${item.color}-500`} />
                   </div>
                   <div className="text-xs text-slate-400 mb-1">{item.desc}</div>
-                  
-                  {/* 전년동기 값 표시 */}
-                  <div className="text-xs text-slate-500 mb-1.5">
-                    전년동기: {item.unit === '억' ? formatOk(item.prev) : `${item.prev}${item.unit}`}
-                  </div>
-                  
-                  {/* YoY 증감 */}
                   <div className={`flex items-center text-sm font-medium ${
                     isPositive ? 'text-green-600' : 'text-red-600'
                   }`}>
                     {isPositive ? <TrendingDown className="w-3 h-3 mr-1" /> : <TrendingUp className="w-3 h-3 mr-1" />}
-                    {item.unit === '일' ? `${change > 0 ? '+' : ''}${change}` : `${change > 0 ? '+' : ''}${change.toFixed(1)}%`} YoY (vs {prevYear})
+                    {item.unit === '일' ? `${change > 0 ? '+' : ''}${change}` : `${change > 0 ? '+' : ''}${change.toFixed(1)}%`} YoY
                   </div>
                 </div>
               );
@@ -401,157 +386,49 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* 종합 AI 분석 (개발 환경 전용) */}
-              <BulkAIAnalysis
-                wcData={wcData}
-                turnoverData={turnoverData}
-                currentQuarter={latestQuarter}
-                previousQuarter={prevYear}
-                entities={entities}
-              />
-
-              {/* 핵심 인사이트 - 동적 생성 */}
+              {/* 핵심 인사이트 */}
               <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200">
                 <h3 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-blue-500" />
                   핵심 인사이트
                 </h3>
                 <div className="space-y-2">
-                  {(() => {
-                    // 법인별 YoY 변화 계산 (연결 제외)
-                    const insights = entities.slice(0, -1).map(entityName => {
-                      const current = wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === entityName);
-                      const prev = wcData.find(d => d.QUARTER === prevYear && d.ENTITY === entityName);
-                      const currentTurn = turnoverData.find(t => t.quarter === latestQuarter && t.entity === entityName);
-                      const prevTurn = turnoverData.find(t => t.quarter === prevYear && t.entity === entityName);
-                      
-                      const wcChange = yoyChange(current?.WC || 0, prev?.WC || 0);
-                      const revenueChange = yoyChange(current?.REVENUE_Q || 0, prev?.REVENUE_Q || 0);
-                      const cccChange = (currentTurn?.ccc || 0) - (prevTurn?.ccc || 0);
-                      
-                      return {
-                        entity: entityName,
-                        wcChange,
-                        revenueChange,
-                        cccChange,
-                        currentCCC: currentTurn?.ccc || 0,
-                        // 자본효율성: 매출 증가율 > 운전자본 증가율이면 효율적
-                        efficiency: revenueChange - wcChange
-                      };
-                    }).filter(i => Math.abs(i.wcChange) > 10 || Math.abs(i.cccChange) > 20); // 유의미한 변화만
-                    
-                    // 우선순위 정렬: 나쁜 변화 > 좋은 변화
-                    insights.sort((a, b) => {
-                      const aScore = (a.wcChange > 20 ? 100 : 0) + (a.cccChange > 30 ? 50 : 0) - (a.efficiency > 0 ? 30 : 0);
-                      const bScore = (b.wcChange > 20 ? 100 : 0) + (b.cccChange > 30 ? 50 : 0) - (b.efficiency > 0 ? 30 : 0);
-                      return bScore - aScore;
-                    });
-                    
-                    // 연결 CCC 추가
-                    const consolidatedCCC = turnoverData.find(t => t.quarter === latestQuarter && t.entity === '연결');
-                    const prevConsolidatedCCC = turnoverData.find(t => t.quarter === prevYear && t.entity === '연결');
-                    const cccChange = (consolidatedCCC?.ccc || 0) - (prevConsolidatedCCC?.ccc || 0);
-                    
-                    const result = [];
-                    
-                    // 상위 3개 법인 인사이트
-                    insights.slice(0, 3).forEach(insight => {
-                      const isGood = insight.wcChange < 0 || insight.efficiency > 10;
-                      const severity = Math.abs(insight.wcChange) > 50 ? 'red' : 
-                                      Math.abs(insight.wcChange) > 30 ? 'amber' : 'blue';
-                      
-                      const colorClasses = isGood ? {
-                        bg: 'bg-green-50',
-                        border: 'border-green-400',
-                        icon: 'text-green-600',
-                        title: 'text-green-800',
-                        desc: 'text-green-700'
-                      } : severity === 'red' ? {
-                        bg: 'bg-red-50',
-                        border: 'border-red-400',
-                        icon: 'text-red-600',
-                        title: 'text-red-800',
-                        desc: 'text-red-700'
-                      } : severity === 'amber' ? {
-                        bg: 'bg-amber-50',
-                        border: 'border-amber-400',
-                        icon: 'text-amber-600',
-                        title: 'text-amber-800',
-                        desc: 'text-amber-700'
-                      } : {
-                        bg: 'bg-blue-50',
-                        border: 'border-blue-400',
-                        icon: 'text-blue-600',
-                        title: 'text-blue-800',
-                        desc: 'text-blue-700'
-                      };
-                      
-                      const Icon = isGood ? CheckCircle : AlertTriangle;
-                      
-                      let message = '';
-                      if (isGood) {
-                        message = insight.wcChange < -15 ? '운전자본 감소로 자금 효율 개선' : '매출 대비 효율적 자본 운용';
-                      } else {
-                        if (insight.efficiency < -10) {
-                          message = '매출 증가 대비 자본효율 저하';
-                        } else if (insight.cccChange > 30) {
-                          message = `CCC ${insight.currentCCC}일로 악화`;
-                        } else {
-                          message = '운전자본 증가 모니터링 필요';
-                        }
-                      }
-                      
-                      result.push(
-                        <div key={insight.entity} className={`p-2 ${colorClasses.bg} border-l-2 ${colorClasses.border} rounded text-xs`}>
-                          <div className="flex items-start gap-1">
-                            <Icon className={`w-3 h-3 ${colorClasses.icon} mt-0.5 flex-shrink-0`} />
-                            <div>
-                              <div className={`font-medium ${colorClasses.title}`}>
-                                {insight.entity} {insight.wcChange > 0 ? '+' : ''}{insight.wcChange.toFixed(1)}%
-                              </div>
-                              <div className={colorClasses.desc}>{message}</div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    });
-                    
-                    // 연결 CCC 인사이트
-                    if (cccChange !== 0) {
-                      const isGood = cccChange < 0;
-                      const cccClasses = isGood ? {
-                        bg: 'bg-green-50',
-                        border: 'border-green-400',
-                        icon: 'text-green-600',
-                        title: 'text-green-800',
-                        desc: 'text-green-700'
-                      } : {
-                        bg: 'bg-blue-50',
-                        border: 'border-blue-400',
-                        icon: 'text-blue-600',
-                        title: 'text-blue-800',
-                        desc: 'text-blue-700'
-                      };
-                      
-                      result.push(
-                        <div key="연결" className={`p-2 ${cccClasses.bg} border-l-2 ${cccClasses.border} rounded text-xs`}>
-                          <div className="flex items-start gap-1">
-                            <AlertCircle className={`w-3 h-3 ${cccClasses.icon} mt-0.5 flex-shrink-0`} />
-                            <div>
-                              <div className={`font-medium ${cccClasses.title}`}>
-                                연결 CCC {consolidatedCCC?.ccc}일
-                              </div>
-                              <div className={cccClasses.desc}>
-                                전년 {prevConsolidatedCCC?.ccc}일 대비 {cccChange > 0 ? '+' : ''}{cccChange}일 {isGood ? '개선' : '악화'}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    }
-                    
-                    return result;
-                  })()}
+                  <div className="p-2 bg-amber-50 border-l-2 border-amber-400 rounded text-xs">
+                    <div className="flex items-start gap-1">
+                      <AlertTriangle className="w-3 h-3 text-amber-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <div className="font-medium text-amber-800">중국 운전자본 +38.7%</div>
+                        <div className="text-amber-700">매출증가 대비 자본효율 저하</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-2 bg-red-50 border-l-2 border-red-400 rounded text-xs">
+                    <div className="flex items-start gap-1">
+                      <AlertTriangle className="w-3 h-3 text-red-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <div className="font-medium text-red-800">ST(미국) +120%</div>
+                        <div className="text-red-700">확장 투자로 CCC 128일</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-2 bg-green-50 border-l-2 border-green-400 rounded text-xs">
+                    <div className="flex items-start gap-1">
+                      <CheckCircle className="w-3 h-3 text-green-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <div className="font-medium text-green-800">국내 -18.5%</div>
+                        <div className="text-green-700">매입채무 활용 개선</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-2 bg-blue-50 border-l-2 border-blue-400 rounded text-xs">
+                    <div className="flex items-start gap-1">
+                      <AlertCircle className="w-3 h-3 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <div className="font-medium text-blue-800">연결 CCC 95일</div>
+                        <div className="text-blue-700">전년 72일 대비 악화</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -563,34 +440,20 @@ export default function Dashboard() {
             title="🤖 AI 전체 분석"
             quarter={latestQuarter}
             data={{
-              currentWC: latestConsolidated?.WC || 0,
-              currentRevenue: latestConsolidated?.REVENUE_Q || 0,
-              currentCOGS: latestConsolidated?.COGS_Q || 0,
-              currentReceivables: latestConsolidated?.RECEIVABLES || 0,
-              currentInventory: latestConsolidated?.INVENTORY || 0,
-              currentPayables: latestConsolidated?.PAYABLES || 0,
+              currentWC: toOk(latestConsolidated?.WC || 0),
+              currentRevenue: toOk(latestConsolidated?.REVENUE_Q || 0),
+              currentCOGS: toOk(latestConsolidated?.COGS_Q || 0),
+              currentReceivables: toOk(latestConsolidated?.RECEIVABLES || 0),
+              currentInventory: toOk(latestConsolidated?.INVENTORY || 0),
+              currentPayables: toOk(latestConsolidated?.PAYABLES || 0),
               currentCCC: latestConsolidated?.ccc || 0,
-              previousWC: prevConsolidated?.WC || 0,
-              previousRevenue: prevConsolidated?.REVENUE_Q || 0,
-              previousCOGS: prevConsolidated?.COGS_Q || 0,
-              previousInventory: prevConsolidated?.INVENTORY || 0,
+              previousWC: toOk(prevConsolidated?.WC || 0),
+              previousRevenue: toOk(prevConsolidated?.REVENUE_Q || 0),
+              previousInventory: toOk(prevConsolidated?.INVENTORY || 0),
               previousCCC: prevConsolidated?.ccc || 0,
               wcChange: yoyChange(latestConsolidated?.WC || 0, prevConsolidated?.WC || 0),
               revenueChange: yoyChange(latestConsolidated?.REVENUE_Q || 0, prevConsolidated?.REVENUE_Q || 0),
               cccChange: (latestConsolidated?.ccc || 0) - (prevConsolidated?.ccc || 0),
-              cashImpact: calculateCashImpact(
-                latestConsolidated?.REVENUE_Q || 0,
-                latestConsolidated?.COGS_Q || 0
-              ),
-              entities: entities.slice(0, -1).map(entityName => {
-                const current = wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === entityName);
-                const prev = wcData.find(d => d.QUARTER === prevYear && d.ENTITY === entityName);
-                return {
-                  name: entityName,
-                  wc: toOk(current?.WC || 0),
-                  change: yoyChange(current?.WC || 0, prev?.WC || 0)
-                };
-              }),
               entitiesDetail: entities.slice(0, -1).map(entityName => {
                 const current = wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === entityName);
                 const prev = wcData.find(d => d.QUARTER === prevYear && d.ENTITY === entityName);
@@ -599,26 +462,23 @@ export default function Dashboard() {
                 
                 return {
                   name: entityName,
-                  currentWC: current?.WC || 0,
-                  currentRevenue: current?.REVENUE_Q || 0,
-                  currentCOGS: current?.COGS_Q || 0,
-                  currentReceivables: current?.RECEIVABLES || 0,
-                  currentInventory: current?.INVENTORY || 0,
+                  currentWC: toOk(current?.WC || 0),
+                  currentRevenue: toOk(current?.REVENUE_Q || 0),
+                  currentCOGS: toOk(current?.COGS_Q || 0),
+                  currentReceivables: toOk(current?.RECEIVABLES || 0),
+                  currentInventory: toOk(current?.INVENTORY || 0),
                   currentDSO: currentTurnover?.dso || 0,
                   currentDIO: currentTurnover?.dio || 0,
-                  currentDPO: currentTurnover?.dpo || 0,
-                  previousRevenue: prev?.REVENUE_Q || 0,
-                  previousReceivables: prev?.RECEIVABLES || 0,
-                  previousInventory: prev?.INVENTORY || 0,
+                  previousRevenue: toOk(prev?.REVENUE_Q || 0),
+                  previousReceivables: toOk(prev?.RECEIVABLES || 0),
+                  previousInventory: toOk(prev?.INVENTORY || 0),
                   previousDSO: prevTurnover?.dso || 0,
                   previousDIO: prevTurnover?.dio || 0,
-                  previousDPO: prevTurnover?.dpo || 0,
                   revenueChange: yoyChange(current?.REVENUE_Q || 0, prev?.REVENUE_Q || 0),
                   receivablesChange: yoyChange(current?.RECEIVABLES || 0, prev?.RECEIVABLES || 0),
                   inventoryChange: yoyChange(current?.INVENTORY || 0, prev?.INVENTORY || 0),
                   dsoChange: (currentTurnover?.dso || 0) - (prevTurnover?.dso || 0),
-                  dioChange: (currentTurnover?.dio || 0) - (prevTurnover?.dio || 0),
-                  dpoChange: (currentTurnover?.dpo || 0) - (prevTurnover?.dpo || 0),
+                  dioChange: (currentTurnover?.dio || 0) - (prevTurnover?.dio || 0)
                 };
               })
             }}
@@ -794,10 +654,190 @@ export default function Dashboard() {
               </ResponsiveContainer>
             </div>
 
+            {/* DSO/DIO/DPO 추이 */}
+            <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
+              <h3 className="font-semibold text-slate-800 mb-4">회전율 세부 추이 (DSO/DIO/DPO)</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <ComposedChart data={turnoverData.filter(t => t.entity === selectedEntity).map(t => ({
+                  quarter: t.quarter,
+                  DSO: t.dso,
+                  DIO: t.dio,
+                  DPO: t.dpo
+                }))}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="quarter" tick={{ fontSize: 11 }} />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="DSO" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="DIO" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="DPO" stroke="#6366f1" strokeWidth={2} dot={{ r: 4 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* YoY 비교 분석 - CCC 추이 하단 */}
+          <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
+            <h3 className="font-semibold text-slate-800 mb-4">{selectedEntity} - 기준분기 vs 전년동기 비교</h3>
+            {(() => {
+              const current = wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === selectedEntity);
+              const prev = wcData.find(d => d.QUARTER === prevYear && d.ENTITY === selectedEntity);
+              const currentTurn = turnoverData.find(t => t.quarter === latestQuarter && t.entity === selectedEntity);
+              const prevTurn = turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity);
+
+              if (!current || !prev || !currentTurn || !prevTurn) return null;
+
+              const metrics = [
+                { 
+                  label: '매출', 
+                  current: current.REVENUE_Q, 
+                  prev: prev.REVENUE_Q,
+                  unit: '억원',
+                  isGoodWhenUp: true
+                },
+                { 
+                  label: '매출원가', 
+                  current: current.COGS_Q, 
+                  prev: prev.COGS_Q,
+                  unit: '억원',
+                  isGoodWhenUp: false
+                },
+                { 
+                  label: '매출채권', 
+                  current: current.RECEIVABLES, 
+                  prev: prev.RECEIVABLES,
+                  unit: '억원',
+                  isGoodWhenUp: false
+                },
+                { 
+                  label: '재고자산', 
+                  current: current.INVENTORY, 
+                  prev: prev.INVENTORY,
+                  unit: '억원',
+                  isGoodWhenUp: false
+                },
+                { 
+                  label: '매입채무', 
+                  current: current.PAYABLES, 
+                  prev: prev.PAYABLES,
+                  unit: '억원',
+                  isGoodWhenUp: true
+                }
+              ];
+
+              const turnovers = [
+                { label: 'DSO', current: currentTurn.dso, prev: prevTurn.dso, unit: '일', isGoodWhenUp: false },
+                { label: 'DIO', current: currentTurn.dio, prev: prevTurn.dio, unit: '일', isGoodWhenUp: false },
+                { label: 'DPO', current: currentTurn.dpo, prev: prevTurn.dpo, unit: '일', isGoodWhenUp: true },
+                { label: 'CCC', current: currentTurn.ccc, prev: prevTurn.ccc, unit: '일', isGoodWhenUp: false }
+              ];
+
+              return (
+                <div className="space-y-4">
+                  {/* 금액 비교 */}
+                  <div>
+                    <h4 className="text-sm font-medium text-slate-600 mb-3">📊 금액 비교 (단위: 억원)</h4>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-50 border-b border-slate-200">
+                          <tr>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700">항목</th>
+                            <th className="px-3 py-2 text-right font-medium text-slate-700">{latestQuarter}</th>
+                            <th className="px-3 py-2 text-right font-medium text-slate-700">{prevYear}</th>
+                            <th className="px-3 py-2 text-right font-medium text-slate-700">증감액</th>
+                            <th className="px-3 py-2 text-right font-medium text-slate-700">증감률</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {metrics.map((m, idx) => {
+                            const diff = m.current - m.prev;
+                            const diffPct = m.prev !== 0 ? (diff / m.prev * 100) : 0;
+                            const isPositive = diff > 0;
+                            const isGoodChange = m.isGoodWhenUp ? isPositive : !isPositive;
+
+                            return (
+                              <tr key={m.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                <td className="px-3 py-2 font-medium text-slate-700">{m.label}</td>
+                                <td className="px-3 py-2 text-right text-slate-800">{toOk(m.current).toLocaleString()}</td>
+                                <td className="px-3 py-2 text-right text-slate-500">{toOk(m.prev).toLocaleString()}</td>
+                                <td className={`px-3 py-2 text-right font-medium ${
+                                  isGoodChange ? 'text-green-600' : 'text-red-600'
+                                }`}>
+                                  {isPositive ? '+' : ''}{toOk(diff).toLocaleString()}
+                                </td>
+                                <td className={`px-3 py-2 text-right font-medium ${
+                                  isGoodChange ? 'text-green-600' : 'text-red-600'
+                                }`}>
+                                  {isPositive ? '+' : ''}{diffPct.toFixed(1)}%
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* 회전율 비교 */}
+                  <div>
+                    <h4 className="text-sm font-medium text-slate-600 mb-3">🔄 회전율 비교 (단위: 일)</h4>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-50 border-b border-slate-200">
+                          <tr>
+                            <th className="px-3 py-2 text-left font-medium text-slate-700">지표</th>
+                            <th className="px-3 py-2 text-right font-medium text-slate-700">{latestQuarter}</th>
+                            <th className="px-3 py-2 text-right font-medium text-slate-700">{prevYear}</th>
+                            <th className="px-3 py-2 text-right font-medium text-slate-700">증감</th>
+                            <th className="px-3 py-2 text-center font-medium text-slate-700">평가</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {turnovers.map((t, idx) => {
+                            const diff = t.current - t.prev;
+                            const isPositive = diff > 0;
+                            const isGoodChange = t.isGoodWhenUp ? isPositive : !isPositive;
+
+                            return (
+                              <tr key={t.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                <td className="px-3 py-2 font-medium text-slate-700">{t.label}</td>
+                                <td className="px-3 py-2 text-right text-slate-800 font-medium">{t.current}</td>
+                                <td className="px-3 py-2 text-right text-slate-500">{t.prev}</td>
+                                <td className={`px-3 py-2 text-right font-bold ${
+                                  isGoodChange ? 'text-green-600' : 'text-red-600'
+                                }`}>
+                                  {isPositive ? '+' : ''}{diff}
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  {isGoodChange ? (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs font-medium">
+                                      ✓ 개선
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full bg-red-100 text-red-700 text-xs font-medium">
+                                      ⚠ 악화
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* 하단 차트 영역 */}
+          <div className="grid grid-cols-2 gap-6">
             {/* 법인별 회전율수 비교 (레이더) */}
             <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
               <h3 className="font-semibold text-slate-800 mb-4">법인별 회전율수 비교 (25.3Q)</h3>
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={280}>
                 <RadarChart data={selectedTurnover && consolidatedTurnover ? [
                   { metric: 'DSO', value: selectedTurnover.dso, consolidatedValue: consolidatedTurnover.dso },
                   { metric: 'DIO', value: selectedTurnover.dio, consolidatedValue: consolidatedTurnover.dio },
@@ -831,119 +871,6 @@ export default function Dashboard() {
                 </RadarChart>
               </ResponsiveContainer>
             </div>
-          </div>
-
-          {/* YoY 비교 분석 + AI 인사이트 */}
-          <div className="grid grid-cols-2 gap-6">
-            {/* YoY 비교 분석 */}
-            <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
-            <h3 className="font-semibold text-slate-800 mb-4">{selectedEntity} - 기준분기 vs 전년동기 비교</h3>
-            {(() => {
-              const current = wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === selectedEntity);
-              const prev = wcData.find(d => d.QUARTER === prevYear && d.ENTITY === selectedEntity);
-              const currentTurn = turnoverData.find(t => t.quarter === latestQuarter && t.entity === selectedEntity);
-              const prevTurn = turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity);
-              if (!current || !prev || !currentTurn || !prevTurn) return null;
-              const metrics = [
-                { label: '매출', current: current.REVENUE_Q, prev: prev.REVENUE_Q, isGoodWhenUp: true },
-                { label: '매출원가', current: current.COGS_Q, prev: prev.COGS_Q, isGoodWhenUp: false },
-                { label: '매출채권', current: current.RECEIVABLES, prev: prev.RECEIVABLES, isGoodWhenUp: false },
-                { label: '재고자산', current: current.INVENTORY, prev: prev.INVENTORY, isGoodWhenUp: false },
-                { label: '매입채무', current: current.PAYABLES, prev: prev.PAYABLES, isGoodWhenUp: true }
-              ];
-              const turnovers = [
-                { label: 'DSO', current: currentTurn.dso, prev: prevTurn.dso, isGoodWhenUp: false },
-                { label: 'DIO', current: currentTurn.dio, prev: prevTurn.dio, isGoodWhenUp: false },
-                { label: 'DPO', current: currentTurn.dpo, prev: prevTurn.dpo, isGoodWhenUp: true },
-                { label: 'CCC', current: currentTurn.ccc, prev: prevTurn.ccc, isGoodWhenUp: false }
-              ];
-              return (
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="text-sm font-medium text-slate-600 mb-3">📊 금액 비교 (단위: 억원)</h4>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-slate-50 border-b border-slate-200">
-                          <tr>
-                            <th className="px-3 py-2 text-left font-medium text-slate-700">항목</th>
-                            <th className="px-3 py-2 text-right font-medium text-slate-700">{latestQuarter}</th>
-                            <th className="px-3 py-2 text-right font-medium text-slate-700">{prevYear}</th>
-                            <th className="px-3 py-2 text-right font-medium text-slate-700">증감액</th>
-                            <th className="px-3 py-2 text-right font-medium text-slate-700">증감률</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {metrics.map((m, idx) => {
-                            const diff = m.current - m.prev;
-                            const diffPct = m.prev !== 0 ? (diff / m.prev * 100) : 0;
-                            const isPositive = diff > 0;
-                            const isGoodChange = m.isGoodWhenUp ? isPositive : !isPositive;
-                            return (
-                              <tr key={m.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                                <td className="px-3 py-2 font-medium text-slate-700">{m.label}</td>
-                                <td className="px-3 py-2 text-right text-slate-800">{toOk(m.current).toLocaleString()}</td>
-                                <td className="px-3 py-2 text-right text-slate-500">{toOk(m.prev).toLocaleString()}</td>
-                                <td className={`px-3 py-2 text-right font-medium ${isGoodChange ? 'text-green-600' : 'text-red-600'}`}>
-                                  {isPositive ? '+' : ''}{toOk(diff).toLocaleString()}
-                                </td>
-                                <td className={`px-3 py-2 text-right font-medium ${isGoodChange ? 'text-green-600' : 'text-red-600'}`}>
-                                  {isPositive ? '+' : ''}{diffPct.toFixed(1)}%
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium text-slate-600 mb-3">🔄 회전율 비교 (단위: 일)</h4>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-slate-50 border-b border-slate-200">
-                          <tr>
-                            <th className="px-3 py-2 text-left font-medium text-slate-700">지표</th>
-                            <th className="px-3 py-2 text-right font-medium text-slate-700">{latestQuarter}</th>
-                            <th className="px-3 py-2 text-right font-medium text-slate-700">{prevYear}</th>
-                            <th className="px-3 py-2 text-right font-medium text-slate-700">증감</th>
-                            <th className="px-3 py-2 text-center font-medium text-slate-700">평가</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {turnovers.map((t, idx) => {
-                            const diff = t.current - t.prev;
-                            const isPositive = diff > 0;
-                            const isGoodChange = t.isGoodWhenUp ? isPositive : !isPositive;
-                            return (
-                              <tr key={t.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                                <td className="px-3 py-2 font-medium text-slate-700">{t.label}</td>
-                                <td className="px-3 py-2 text-right text-slate-800 font-medium">{t.current}</td>
-                                <td className="px-3 py-2 text-right text-slate-500">{t.prev}</td>
-                                <td className={`px-3 py-2 text-right font-bold ${isGoodChange ? 'text-green-600' : 'text-red-600'}`}>
-                                  {isPositive ? '+' : ''}{diff}
-                                </td>
-                                <td className="px-3 py-2 text-center">
-                                  {isGoodChange ? (
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs font-medium">
-                                      ✓ 개선
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full bg-red-100 text-red-700 text-xs font-medium">
-                                      ⚠ 악화
-                                    </span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-            </div>
 
             {/* AI 인사이트 - 회전율 */}
             <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
@@ -954,81 +881,18 @@ export default function Dashboard() {
                 context={{ entity: selectedEntity }}
                 data={{
                   entity: selectedEntity,
-                  currentQuarter: latestQuarter,
-                  prevYearQuarter: prevYear,
-                  current: {
-                    dso: selectedTurnover?.dso || 0,
-                    dio: selectedTurnover?.dio || 0,
-                    dpo: selectedTurnover?.dpo || 0,
-                    ccc: selectedTurnover?.ccc || 0,
-                    revenue: wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === selectedEntity)?.REVENUE_Q || 0,
-                    cogs: wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === selectedEntity)?.COGS_Q || 0,
-                    receivables: wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === selectedEntity)?.RECEIVABLES || 0,
-                    inventory: wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === selectedEntity)?.INVENTORY || 0,
-                  },
-                  prevYear: {
-                    dso: turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.dso || 0,
-                    dio: turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.dio || 0,
-                    dpo: turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.dpo || 0,
-                    ccc: turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.ccc || 0,
-                    revenue: wcData.find(d => d.QUARTER === prevYear && d.ENTITY === selectedEntity)?.REVENUE_Q || 0,
-                    cogs: wcData.find(d => d.QUARTER === prevYear && d.ENTITY === selectedEntity)?.COGS_Q || 0,
-                    receivables: wcData.find(d => d.QUARTER === prevYear && d.ENTITY === selectedEntity)?.RECEIVABLES || 0,
-                    inventory: wcData.find(d => d.QUARTER === prevYear && d.ENTITY === selectedEntity)?.INVENTORY || 0,
-                  },
-                  changes: {
-                    dso: (selectedTurnover?.dso || 0) - (turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.dso || 0),
-                    dio: (selectedTurnover?.dio || 0) - (turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.dio || 0),
-                    dpo: (selectedTurnover?.dpo || 0) - (turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.dpo || 0),
-                    ccc: (selectedTurnover?.ccc || 0) - (turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.ccc || 0),
-                  },
-                  quarterlyTrend: turnoverData
-                    .filter(t => t.entity === selectedEntity)
-                    .map(t => ({
-                      quarter: t.quarter,
-                      dso: t.dso,
-                      dio: t.dio,
-                      dpo: t.dpo,
-                      ccc: t.ccc
-                    })),
-                  thirdQuarterHistory: turnoverData
-                    .filter(t => t.entity === selectedEntity && t.quarter.endsWith('.3Q'))
-                    .map(t => ({
-                      quarter: t.quarter,
-                      dso: t.dso,
-                      dio: t.dio,
-                      dpo: t.dpo,
-                      ccc: t.ccc
-                    })),
-                  // 추세 데이터 추가
-                  wcTrend: quarters.map(q => {
-                    const item = wcData.find(d => d.QUARTER === q && d.ENTITY === selectedEntity);
-                    return { quarter: q, wc: item?.WC || 0 };
-                  }),
-                  revenueTrend: quarters.map(q => {
-                    const item = wcData.find(d => d.QUARTER === q && d.ENTITY === selectedEntity);
-                    return { quarter: q, revenue: item?.REVENUE_Q || 0 };
-                  }),
-                  turnoverTrend: quarters.map(q => {
-                    const turn = turnoverData.find(t => t.quarter === q && t.entity === selectedEntity);
-                    return {
-                      quarter: q,
-                      dso: turn?.dso || 0,
-                      dio: turn?.dio || 0,
-                      dpo: turn?.dpo || 0,
-                      ccc: turn?.ccc || 0,
-                    };
-                  }),
-                  wcTrendDirection: yoyChange(
-                    wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === selectedEntity)?.WC || 0,
-                    wcData.find(d => d.QUARTER === prevYear && d.ENTITY === selectedEntity)?.WC || 0
-                  ) > 0 ? '증가 추세' : '감소 추세',
-                  revenueTrendDirection: yoyChange(
-                    wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === selectedEntity)?.REVENUE_Q || 0,
-                    wcData.find(d => d.QUARTER === prevYear && d.ENTITY === selectedEntity)?.REVENUE_Q || 0
-                  ) > 0 ? '증가 추세' : '감소 추세',
-                  cccTrendDirection: ((turnoverData.find(t => t.quarter === latestQuarter && t.entity === selectedEntity)?.ccc || 0) -
-                    (turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.ccc || 0)) > 0 ? '증가 추세 (악화)' : '감소 추세 (개선)',
+                  dso: selectedTurnover?.dso || 0,
+                  dio: selectedTurnover?.dio || 0,
+                  dpo: selectedTurnover?.dpo || 0,
+                  ccc: selectedTurnover?.ccc || 0,
+                  prevDso: turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.dso || 0,
+                  prevDio: turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.dio || 0,
+                  prevDpo: turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.dpo || 0,
+                  prevCcc: turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.ccc || 0,
+                  dsoChange: (selectedTurnover?.dso || 0) - (turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.dso || 0),
+                  dioChange: (selectedTurnover?.dio || 0) - (turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.dio || 0),
+                  dpoChange: (selectedTurnover?.dpo || 0) - (turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.dpo || 0),
+                  cccChange: (selectedTurnover?.ccc || 0) - (turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.ccc || 0),
                 }}
               />
             </div>
@@ -1055,7 +919,6 @@ export default function Dashboard() {
                 <ul className="space-y-0.5 text-amber-700">
                   <li>• CCC 95일 (+23일 YoY)</li>
                   <li>• DIO 91일 재고 증가 주가</li>
-                </ul>
               </div>
               <div className="bg-white/60 rounded p-2 text-xs">
                 <div className="font-medium text-pink-800 mb-1">💡 개선 방향</div>
@@ -1262,62 +1125,34 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* AI 액션플랜 (개선목표) */}
-          <AIActionPlan
+          {/* AI 인사이트 - 추세 */}
+          <AIInsight
+            type="trend"
+            title={`🤖 ${selectedEntity} 추세 AI 분석`}
             quarter={latestQuarter}
-            selectedEntity={selectedEntity}
+            context={{ entity: selectedEntity }}
             data={{
-              wcData: wcData,
-              turnoverData: turnoverData,
-              currentQuarter: latestQuarter,
-              previousQuarter: prevYear,
-              entities: entities,
-              summary: {
-                totalWC: wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === (selectedEntity === '연결' ? '연결' : selectedEntity))?.WC || 0,
-                avgCCC: turnoverData.find(t => t.quarter === latestQuarter && t.entity === (selectedEntity === '연결' ? '연결' : selectedEntity))?.ccc || 0,
-                yoyChanges: selectedEntity === '연결' 
-                  ? entities.slice(0, -1).map(entity => {
-                      const current = wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === entity);
-                      const prev = wcData.find(d => d.QUARTER === prevYear && d.ENTITY === entity);
-                      return {
-                        entity,
-                        wcChange: ((current?.WC || 0) - (prev?.WC || 0)) / (prev?.WC || 1) * 100,
-                        currentWC: current?.WC || 0,
-                        prevWC: prev?.WC || 0,
-                      };
-                    })
-                  : [{
-                      entity: selectedEntity,
-                      wcChange: (() => {
-                        const current = wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === selectedEntity);
-                        const prev = wcData.find(d => d.QUARTER === prevYear && d.ENTITY === selectedEntity);
-                        return ((current?.WC || 0) - (prev?.WC || 0)) / (prev?.WC || 1) * 100;
-                      })(),
-                      currentWC: wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === selectedEntity)?.WC || 0,
-                      prevWC: wcData.find(d => d.QUARTER === prevYear && d.ENTITY === selectedEntity)?.WC || 0,
-                    }],
-                turnoverMetrics: selectedEntity === '연결'
-                  ? entities.slice(0, -1).map(entity => {
-                      const current = turnoverData.find(t => t.quarter === latestQuarter && t.entity === entity);
-                      const prev = turnoverData.find(t => t.quarter === prevYear && t.entity === entity);
-                      return {
-                        entity,
-                        currentCCC: current?.ccc || 0,
-                        prevCCC: prev?.ccc || 0,
-                        dso: current?.dso || 0,
-                        dio: current?.dio || 0,
-                        dpo: current?.dpo || 0,
-                      };
-                    })
-                  : [{
-                      entity: selectedEntity,
-                      currentCCC: turnoverData.find(t => t.quarter === latestQuarter && t.entity === selectedEntity)?.ccc || 0,
-                      prevCCC: turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.ccc || 0,
-                      dso: turnoverData.find(t => t.quarter === latestQuarter && t.entity === selectedEntity)?.dso || 0,
-                      dio: turnoverData.find(t => t.quarter === latestQuarter && t.entity === selectedEntity)?.dio || 0,
-                      dpo: turnoverData.find(t => t.quarter === latestQuarter && t.entity === selectedEntity)?.dpo || 0,
-                    }],
-              }
+              entity: selectedEntity,
+              wcTrend: quarters.map(q => {
+                const item = wcData.find(d => d.QUARTER === q && d.ENTITY === selectedEntity);
+                return { quarter: q, wc: toOk(item?.WC || 0) };
+              }),
+              turnoverTrend: quarters.map(q => {
+                const turn = turnoverData.find(t => t.quarter === q && t.entity === selectedEntity);
+                return {
+                  quarter: q,
+                  dso: turn?.dso || 0,
+                  dio: turn?.dio || 0,
+                  dpo: turn?.dpo || 0,
+                  ccc: turn?.ccc || 0,
+                };
+              }),
+              wcTrendDirection: yoyChange(
+                wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === selectedEntity)?.WC || 0,
+                wcData.find(d => d.QUARTER === prevYear && d.ENTITY === selectedEntity)?.WC || 0
+              ) > 0 ? '증가 추세' : '감소 추세',
+              cccTrendDirection: ((turnoverData.find(t => t.quarter === latestQuarter && t.entity === selectedEntity)?.ccc || 0) -
+                (turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.ccc || 0)) > 0 ? '증가 추세 (악화)' : '감소 추세 (개선)',
             }}
           />
         </div>
@@ -1361,6 +1196,107 @@ export default function Dashboard() {
                   };
                 }),
               }
+            }}
+          />
+
+          {/* CCC 목표 vs 현재 + 개선 방향 */}
+          <div className="grid grid-cols-2 gap-6">
+            {/* CCC 목표 vs 현재 */}
+            <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
+              <h3 className="font-semibold text-slate-800 mb-4">CCC 목표 vs 현재</h3>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart
+                  data={[
+                    { entity: '국내', 현재: 84, 목표: 70 },
+                    { entity: '중국', 현재: 72, 목표: 55 },
+                    { entity: '홍콩', 현재: 101, 목표: 75 },
+                    { entity: 'ST', 현재: 122, 목표: 90 },
+                  ]}
+                  layout="vertical"
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" />
+                  <YAxis dataKey="entity" type="category" width={50} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="현재" fill="#ef4444" />
+                  <Bar dataKey="목표" fill="#22c55e" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* 개선 방향 */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-5 border border-blue-200">
+              <h3 className="font-semibold text-blue-900 mb-4">💡 개선 방향</h3>
+              <div className="space-y-3">
+                <div className="bg-white/80 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold">
+                      1
+                    </div>
+                    <div className="font-medium text-blue-900">국내</div>
+                  </div>
+                  <div className="text-sm text-slate-700 pl-8">
+                    DPO 82일 공급망 리스크 → 60~75일 적정화
+                  </div>
+                </div>
+                <div className="bg-white/80 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center text-xs font-bold">
+                      2
+                    </div>
+                    <div className="font-medium text-red-900">중국</div>
+                  </div>
+                  <div className="text-sm text-slate-700 pl-8">
+                    DIO 관리 필요 → CCC 70일 이하 목표
+                  </div>
+                </div>
+                <div className="bg-white/80 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center text-xs font-bold">
+                      3
+                    </div>
+                    <div className="font-medium text-green-900">ST</div>
+                  </div>
+                  <div className="text-sm text-slate-700 pl-8">
+                    CCC 128일 과다 → 90일 단계적 개선
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 p-3 bg-green-100 rounded-lg">
+                <div className="font-medium text-green-900 mb-2">💰 개선 효과 (CCC 102→58일)</div>
+                <div className="text-sm text-green-800">
+                  • 운전자본 절감: 약 2,288억원<br />
+                  • 연간 이자비용 절감: 약 114억원 (5% 가정)
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* AI 액션 플랜 */}
+          <AIInsight
+            type="action"
+            title="🤖 AI 액션 플랜 추천"
+            quarter={latestQuarter}
+            data={{
+              entities: yoyTableData.map(row => ({
+                name: row.entity,
+                wc: toOk(row.wc),
+                ccc: row.ccc,
+                yoy: row.wcYoY,
+              })),
+              issues: [
+                `연결 재고 ${yoyChange(latestConsolidated?.INVENTORY || 0, prevConsolidated?.INVENTORY || 0).toFixed(1)}% 증가`,
+                `중국 채권 ${yoyChange(
+                  wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === '중국')?.RECEIVABLES || 0,
+                  wcData.find(d => d.QUARTER === prevYear && d.ENTITY === '중국')?.RECEIVABLES || 0
+                ).toFixed(1)}% 증가`,
+                `ST(미국) 운전자본 ${yoyChange(
+                  wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === 'ST(미국)')?.WC || 0,
+                  wcData.find(d => d.QUARTER === prevYear && d.ENTITY === 'ST(미국)')?.WC || 0
+                ).toFixed(1)}% 증가`,
+              ],
+              currentCCC: latestConsolidated?.ccc || 0,
             }}
           />
         </div>

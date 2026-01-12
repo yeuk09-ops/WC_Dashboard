@@ -12,63 +12,63 @@ const TURNOVER_DATA = {
   quarters: ['24.1Q', '24.2Q', '24.3Q', '24.4Q', '25.1Q', '25.2Q', '25.3Q'],
   entities: ['국내(OC)', '중국', '홍콩', 'ST(미국)', '기타', '연결'],
   
-  // 분기별 법인별 회전율
+  // 분기별 법인별 회전율 (누적 매출/매출원가 연환산 기반: 누적 ÷ 분기수 × 4)
   data: [
     // 24.1Q
-    { quarter: '24.1Q', entity: '국내(OC)', dso: 21, dio: 142, dpo: 75, ccc: 88 },
-    { quarter: '24.1Q', entity: '중국', dso: 28, dio: 48, dpo: 6, ccc: 70 },
-    { quarter: '24.1Q', entity: '홍콩', dso: 15, dio: 85, dpo: 2, ccc: 98 },
-    { quarter: '24.1Q', entity: 'ST(미국)', dso: 55, dio: 62, dpo: 12, ccc: 105 },
-    { quarter: '24.1Q', entity: '기타', dso: 30, dio: 40, dpo: 8, ccc: 62 },
-    { quarter: '24.1Q', entity: '연결', dso: 26, dio: 78, dpo: 28, ccc: 76 },
+    { quarter: '24.1Q', entity: '국내(OC)', dso: 24, dio: 250, dpo: 74, ccc: 200 },
+    { quarter: '24.1Q', entity: '중국', dso: 3, dio: 83, dpo: 6, ccc: 80 },
+    { quarter: '24.1Q', entity: '홍콩', dso: 14, dio: 302, dpo: 0, ccc: 316 },
+    { quarter: '24.1Q', entity: 'ST(미국)', dso: 28, dio: 191, dpo: 40, ccc: 179 },
+    { quarter: '24.1Q', entity: '기타', dso: 632, dio: 0, dpo: 26, ccc: 606 },
+    { quarter: '24.1Q', entity: '연결', dso: 15, dio: 169, dpo: 40, ccc: 144 },
     
     // 24.2Q
-    { quarter: '24.2Q', entity: '국내(OC)', dso: 22, dio: 138, dpo: 72, ccc: 88 },
-    { quarter: '24.2Q', entity: '중국', dso: 27, dio: 50, dpo: 7, ccc: 70 },
-    { quarter: '24.2Q', entity: '홍콩', dso: 16, dio: 82, dpo: 3, ccc: 95 },
-    { quarter: '24.2Q', entity: 'ST(미국)', dso: 58, dio: 65, dpo: 13, ccc: 110 },
-    { quarter: '24.2Q', entity: '기타', dso: 32, dio: 42, dpo: 9, ccc: 65 },
-    { quarter: '24.2Q', entity: '연결', dso: 27, dio: 76, dpo: 27, ccc: 76 },
+    { quarter: '24.2Q', entity: '국내(OC)', dso: 20, dio: 256, dpo: 60, ccc: 216 },
+    { quarter: '24.2Q', entity: '중국', dso: 3, dio: 95, dpo: 15, ccc: 83 },
+    { quarter: '24.2Q', entity: '홍콩', dso: 13, dio: 311, dpo: 1, ccc: 323 },
+    { quarter: '24.2Q', entity: 'ST(미국)', dso: 44, dio: 210, dpo: 148, ccc: 106 },
+    { quarter: '24.2Q', entity: '기타', dso: 277, dio: 0, dpo: 9, ccc: 268 },
+    { quarter: '24.2Q', entity: '연결', dso: 13, dio: 181, dpo: 39, ccc: 155 },
     
     // 24.3Q
-    { quarter: '24.3Q', entity: '국내(OC)', dso: 23, dio: 135, dpo: 68, ccc: 90 },
-    { quarter: '24.3Q', entity: '중국', dso: 26, dio: 46, dpo: 6, ccc: 66 },
-    { quarter: '24.3Q', entity: '홍콩', dso: 17, dio: 80, dpo: 2, ccc: 95 },
-    { quarter: '24.3Q', entity: 'ST(미국)', dso: 60, dio: 68, dpo: 14, ccc: 114 },
-    { quarter: '24.3Q', entity: '기타', dso: 28, dio: 38, dpo: 7, ccc: 59 },
-    { quarter: '24.3Q', entity: '연결', dso: 28, dio: 72, dpo: 28, ccc: 72 },
+    { quarter: '24.3Q', entity: '국내(OC)', dso: 19, dio: 334, dpo: 156, ccc: 197 },
+    { quarter: '24.3Q', entity: '중국', dso: 35, dio: 118, dpo: 18, ccc: 135 },
+    { quarter: '24.3Q', entity: '홍콩', dso: 11, dio: 343, dpo: 0, ccc: 354 },
+    { quarter: '24.3Q', entity: 'ST(미국)', dso: 58, dio: 220, dpo: 45, ccc: 233 },
+    { quarter: '24.3Q', entity: '기타', dso: 0, dio: 0, dpo: 0, ccc: 0 },
+    { quarter: '24.3Q', entity: '연결', dso: 27, dio: 215, dpo: 78, ccc: 164 },
     
     // 24.4Q
-    { quarter: '24.4Q', entity: '국내(OC)', dso: 24, dio: 140, dpo: 70, ccc: 94 },
-    { quarter: '24.4Q', entity: '중국', dso: 28, dio: 48, dpo: 7, ccc: 69 },
-    { quarter: '24.4Q', entity: '홍콩', dso: 18, dio: 85, dpo: 3, ccc: 100 },
-    { quarter: '24.4Q', entity: 'ST(미국)', dso: 62, dio: 72, dpo: 15, ccc: 119 },
-    { quarter: '24.4Q', entity: '기타', dso: 30, dio: 40, dpo: 8, ccc: 62 },
-    { quarter: '24.4Q', entity: '연결', dso: 29, dio: 75, dpo: 29, ccc: 75 },
+    { quarter: '24.4Q', entity: '국내(OC)', dso: 34, dio: 265, dpo: 99, ccc: 200 },
+    { quarter: '24.4Q', entity: '중국', dso: 17, dio: 104, dpo: 22, ccc: 99 },
+    { quarter: '24.4Q', entity: '홍콩', dso: 19, dio: 376, dpo: 1, ccc: 394 },
+    { quarter: '24.4Q', entity: 'ST(미국)', dso: 53, dio: 350, dpo: 202, ccc: 201 },
+    { quarter: '24.4Q', entity: '기타', dso: 4, dio: 0, dpo: 0, ccc: 4 },
+    { quarter: '24.4Q', entity: '연결', dso: 26, dio: 183, dpo: 58, ccc: 151 },
     
     // 25.1Q
-    { quarter: '25.1Q', entity: '국내(OC)', dso: 25, dio: 145, dpo: 78, ccc: 92 },
-    { quarter: '25.1Q', entity: '중국', dso: 29, dio: 47, dpo: 6, ccc: 70 },
-    { quarter: '25.1Q', entity: '홍콩', dso: 18, dio: 88, dpo: 3, ccc: 103 },
-    { quarter: '25.1Q', entity: 'ST(미국)', dso: 64, dio: 75, dpo: 16, ccc: 123 },
-    { quarter: '25.1Q', entity: '기타', dso: 32, dio: 42, dpo: 9, ccc: 65 },
-    { quarter: '25.1Q', entity: '연결', dso: 30, dio: 78, dpo: 30, ccc: 78 },
+    { quarter: '25.1Q', entity: '국내(OC)', dso: 24, dio: 265, dpo: 86, ccc: 203 },
+    { quarter: '25.1Q', entity: '중국', dso: 7, dio: 72, dpo: 10, ccc: 69 },
+    { quarter: '25.1Q', entity: '홍콩', dso: 11, dio: 296, dpo: 0, ccc: 307 },
+    { quarter: '25.1Q', entity: 'ST(미국)', dso: 47, dio: 464, dpo: 98, ccc: 413 },
+    { quarter: '25.1Q', entity: '기타', dso: 63, dio: 0, dpo: 0, ccc: 63 },
+    { quarter: '25.1Q', entity: '연결', dso: 15, dio: 163, dpo: 43, ccc: 135 },
     
     // 25.2Q
-    { quarter: '25.2Q', entity: '국내(OC)', dso: 24, dio: 143, dpo: 80, ccc: 87 },
-    { quarter: '25.2Q', entity: '중국', dso: 30, dio: 46, dpo: 7, ccc: 69 },
-    { quarter: '25.2Q', entity: '홍콩', dso: 19, dio: 90, dpo: 3, ccc: 106 },
-    { quarter: '25.2Q', entity: 'ST(미국)', dso: 66, dio: 78, dpo: 17, ccc: 127 },
-    { quarter: '25.2Q', entity: '기타', dso: 34, dio: 44, dpo: 10, ccc: 68 },
-    { quarter: '25.2Q', entity: '연결', dso: 30, dio: 80, dpo: 31, ccc: 79 },
+    { quarter: '25.2Q', entity: '국내(OC)', dso: 18, dio: 280, dpo: 75, ccc: 223 },
+    { quarter: '25.2Q', entity: '중국', dso: 4, dio: 87, dpo: 15, ccc: 76 },
+    { quarter: '25.2Q', entity: '홍콩', dso: 17, dio: 275, dpo: 2, ccc: 290 },
+    { quarter: '25.2Q', entity: 'ST(미국)', dso: 53, dio: 395, dpo: 97, ccc: 351 },
+    { quarter: '25.2Q', entity: '기타', dso: 56, dio: 0, dpo: 0, ccc: 56 },
+    { quarter: '25.2Q', entity: '연결', dso: 12, dio: 181, dpo: 42, ccc: 151 },
     
     // 25.3Q
-    { quarter: '25.3Q', entity: '국내(OC)', dso: 24, dio: 143, dpo: 82, ccc: 85 },
-    { quarter: '25.3Q', entity: '중국', dso: 31, dio: 46, dpo: 5, ccc: 72 },
-    { quarter: '25.3Q', entity: '홍콩', dso: 16, dio: 88, dpo: 1, ccc: 103 },
-    { quarter: '25.3Q', entity: 'ST(미국)', dso: 65, dio: 71, dpo: 15, ccc: 121 },
-    { quarter: '25.3Q', entity: '기타', dso: 35, dio: 45, dpo: 11, ccc: 69 },
-    { quarter: '25.3Q', entity: '연결', dso: 29, dio: 80, dpo: 31, ccc: 78 },
+    { quarter: '25.3Q', entity: '국내(OC)', dso: 20, dio: 361, dpo: 209, ccc: 172 },
+    { quarter: '25.3Q', entity: '중국', dso: 37, dio: 157, dpo: 17, ccc: 177 },
+    { quarter: '25.3Q', entity: '홍콩', dso: 15, dio: 342, dpo: 2, ccc: 355 },
+    { quarter: '25.3Q', entity: 'ST(미국)', dso: 95, dio: 478, dpo: 98, ccc: 475 },
+    { quarter: '25.3Q', entity: '기타', dso: 32, dio: 0, dpo: 0, ccc: 32 },
+    { quarter: '25.3Q', entity: '연결', dso: 31, dio: 246, dpo: 94, ccc: 183 },
   ]
 };
 

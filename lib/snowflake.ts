@@ -61,6 +61,8 @@ export interface WCData {
   ENTITY: string;
   REVENUE_Q: number;
   COGS_Q?: number; // 매출원가 (선택적)
+  REVENUE_YTD?: number; // 연초부터 누적 매출 (선택적)
+  COGS_YTD?: number; // 연초부터 누적 매출원가 (선택적)
   RECEIVABLES: number;
   INVENTORY: number;
   PAYABLES: number;
@@ -108,17 +110,35 @@ FROM QUARTERLY_DATA
 ORDER BY QUARTER, ENTITY
 `;
 
-// 회전율 계산 함수
+// 회전율 계산 함수 (누적 데이터 기반 연환산)
 export function calcTurnover(data: WCData) {
-  const annualRevenue = data.REVENUE_Q * 4;
+  // 분기 숫자 추출 (24.1Q -> 1, 24.2Q -> 2, ...)
+  const quarterMatch = data.QUARTER.match(/\.(\d)Q$/);
+  const quarterNumber = quarterMatch ? parseInt(quarterMatch[1]) : 4;
+  
+  // 누적 데이터가 있으면 연환산 (누적 / 분기수 × 4)
+  let annualRevenue: number;
+  if (data.REVENUE_YTD) {
+    annualRevenue = (data.REVENUE_YTD / quarterNumber) * 4;
+  } else {
+    annualRevenue = data.REVENUE_Q * 4;
+  }
   
   // DSO는 매출액 기준
   const dso = data.RECEIVABLES > 0 ? Math.round(365 / (annualRevenue / data.RECEIVABLES)) : 0;
   
   // DIO, DPO는 매출원가 기준
-  // 실제 매출원가가 있으면 사용, 없으면 매출액의 60%로 추정
   const cogsRate = 0.60; // 매출원가율 (추정용)
-  const annualCOGS = data.COGS_Q ? data.COGS_Q * 4 : annualRevenue * cogsRate;
+  let annualCOGS: number;
+  
+  if (data.COGS_YTD) {
+    // 누적 매출원가 연환산
+    annualCOGS = (data.COGS_YTD / quarterNumber) * 4;
+  } else if (data.COGS_Q) {
+    annualCOGS = data.COGS_Q * 4;
+  } else {
+    annualCOGS = annualRevenue * cogsRate;
+  }
   
   const dio = data.INVENTORY > 0 ? Math.round(365 / (annualCOGS / data.INVENTORY)) : 0;
   const dpo = data.PAYABLES > 0 ? Math.round(365 / (annualCOGS / data.PAYABLES)) : 0;

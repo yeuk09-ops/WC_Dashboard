@@ -27,9 +27,9 @@ export default function RootLayout({
           <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <a href="/" className="flex items-center gap-3 hover:opacity-80 transition">
-                <span className="text-2xl font-bold text-slate-800">F&F</span>
-                <span className="text-slate-400">|</span>
-                <span className="text-slate-600 font-medium">운전자본 대시보드</span>
+              <span className="text-2xl font-bold text-slate-800">F&F</span>
+              <span className="text-slate-400">|</span>
+              <span className="text-slate-600 font-medium">운전자본 대시보드</span>
               </a>
             </div>
             <div className="flex items-center gap-4">

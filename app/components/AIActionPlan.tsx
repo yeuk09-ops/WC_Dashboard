@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Bot, AlertTriangle, AlertCircle, CheckCircle } from 'lucide-react';
+import { RefreshCw, Bot } from 'lucide-react';
 
 interface ActionItem {
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
@@ -15,9 +15,11 @@ interface ActionItem {
 interface AIActionPlanProps {
   data: any;
   quarter: string;
+  selectedEntity: string;
 }
 
-export default function AIActionPlan({ data, quarter }: AIActionPlanProps) {
+export default function AIActionPlan({ data, quarter, selectedEntity }: AIActionPlanProps) {
+  const [improvementDirection, setImprovementDirection] = useState<string>('');
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,22 +36,27 @@ export default function AIActionPlan({ data, quarter }: AIActionPlanProps) {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ data, quarter, forceRegenerate: false }),
+          body: JSON.stringify({ data, quarter, selectedEntity, forceRegenerate: false }),
         });
         const json = await res.json();
-        if (json.success && json.actionItems && Array.isArray(json.actionItems)) {
-          setActionItems(json.actionItems);
-          console.log(`✅ 액션플랜 로드 성공: ${json.actionItems.length}개 항목`);
+        if (json.success) {
+          if (json.improvementDirection) {
+            setImprovementDirection(json.improvementDirection);
+          }
+          if (json.actionItems && Array.isArray(json.actionItems)) {
+            setActionItems(json.actionItems);
+            console.log(`✅ 액션플랜 로드 성공: ${json.actionItems.length}개 항목`);
+          }
         }
       } catch (err) {
         console.error('캐시된 액션플랜 로드 실패:', err);
       }
     };
 
-    if (quarter) {
+    if (quarter && selectedEntity) {
       loadCachedActionPlan();
     }
-  }, [quarter, data]);
+  }, [quarter, selectedEntity, data]);
 
   const fetchActionPlan = async () => {
     if (!isAIEnabled) {
@@ -65,11 +72,12 @@ export default function AIActionPlan({ data, quarter }: AIActionPlanProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ data, quarter, forceRegenerate: true }),
+        body: JSON.stringify({ data, quarter, selectedEntity, forceRegenerate: true }),
       });
       const json = await res.json();
       if (json.success) {
-        setActionItems(json.actionItems);
+        setImprovementDirection(json.improvementDirection || '');
+        setActionItems(json.actionItems || []);
       } else {
         setError(json.error || 'AI 액션플랜 생성에 실패했습니다.');
       }
@@ -80,52 +88,14 @@ export default function AIActionPlan({ data, quarter }: AIActionPlanProps) {
     }
   };
 
-  const highCount = actionItems.filter(item => item.priority === 'HIGH').length;
-  const mediumCount = actionItems.filter(item => item.priority === 'MEDIUM').length;
-  const lowCount = actionItems.filter(item => item.priority === 'LOW').length;
-
   return (
     <>
-      {/* 우선순위별 카운트 */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-red-50 border-l-4 border-red-500 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-red-600 text-sm font-medium">⚠ HIGH</div>
-              <div className="text-3xl font-bold text-red-700 mt-1">{highCount}</div>
-              <div className="text-xs text-red-600 mt-1">즉시 조치</div>
-            </div>
-            <AlertTriangle className="w-8 h-8 text-red-500" />
-          </div>
-        </div>
-        <div className="bg-amber-50 border-l-4 border-amber-500 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-amber-600 text-sm font-medium">⚠ MEDIUM</div>
-              <div className="text-3xl font-bold text-amber-700 mt-1">{mediumCount}</div>
-              <div className="text-xs text-amber-600 mt-1">분기 내</div>
-            </div>
-            <AlertCircle className="w-8 h-8 text-amber-500" />
-          </div>
-        </div>
-        <div className="bg-green-50 border-l-4 border-green-500 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-green-600 text-sm font-medium">✓ LOW</div>
-              <div className="text-3xl font-bold text-green-700 mt-1">{lowCount}</div>
-              <div className="text-xs text-green-600 mt-1">모니터링</div>
-            </div>
-            <CheckCircle className="w-8 h-8 text-green-500" />
-          </div>
-        </div>
-      </div>
-
-      {/* 액션플랜 목록 */}
+      {/* AI 생성 버튼 섹션 */}
       <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-            <Bot className="w-5 h-5 text-sky-500" /> AI 생성 액션플랜
-            {!isAIEnabled && actionItems.length > 0 && (
+            <Bot className="w-5 h-5 text-sky-500" /> AI 개선방향 및 액션플랜
+            {!isAIEnabled && (improvementDirection || actionItems.length > 0) && (
               <span className="text-xs text-sky-600 bg-sky-100 px-2 py-1 rounded">
                 정적 분석
               </span>
@@ -142,7 +112,7 @@ export default function AIActionPlan({ data, quarter }: AIActionPlanProps) {
               ) : (
                 <Bot className="w-4 h-4 mr-2" />
               )}
-              액션플랜 생성
+              AI 분석 생성
             </button>
           )}
         </div>
@@ -153,55 +123,77 @@ export default function AIActionPlan({ data, quarter }: AIActionPlanProps) {
           </div>
         )}
 
-        {!actionItems.length && !loading && !error && (
+        {!improvementDirection && !actionItems.length && !loading && !error && (
           <div className="p-6 bg-slate-50 rounded-md text-center text-slate-600">
             <Bot className="w-12 h-12 mx-auto mb-3 text-slate-400" />
-            <p className="text-sm">AI 액션플랜 생성 버튼을 눌러<br />데이터 기반 우선순위별 액션플랜을 확인하세요.</p>
+            <p className="text-sm">AI 분석 생성 버튼을 눌러<br />데이터 기반 개선방향과 액션플랜을 확인하세요.</p>
           </div>
         )}
 
         {loading && (
           <div className="flex items-center justify-center h-40 bg-slate-50 rounded-md">
             <RefreshCw className="w-8 h-8 animate-spin text-sky-500" />
-            <span className="ml-3 text-slate-600">AI가 액션플랜을 생성하고 있습니다...</span>
+            <span className="ml-3 text-slate-600">AI가 개선방향 및 액션플랜을 생성하고 있습니다...</span>
           </div>
         )}
 
-        {actionItems.length > 0 && (
-          <div className="space-y-3">
-            {actionItems.map((item, idx) => (
-              <div
-                key={idx}
-                className={`p-4 rounded-lg border-l-4 ${
-                  item.priority === 'HIGH'
-                    ? 'bg-red-50 border-red-500'
-                    : item.priority === 'MEDIUM'
-                    ? 'bg-amber-50 border-amber-500'
-                    : 'bg-green-50 border-green-500'
-                }`}
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`px-2 py-0.5 text-xs font-bold rounded ${
-                        item.priority === 'HIGH'
-                          ? 'bg-red-500 text-white'
-                          : item.priority === 'MEDIUM'
-                          ? 'bg-amber-500 text-white'
-                          : 'bg-green-500 text-white'
-                      }`}
-                    >
-                      {item.priority}
-                    </span>
-                    <span className="text-xs font-medium text-slate-600">{item.label}</span>
-                  </div>
-                  <span className="text-xs text-slate-500">{item.target}</span>
-                </div>
-                <div className="font-medium text-slate-800 mb-1">{item.issue}</div>
-                <div className="text-sm text-slate-600 mb-1">{item.action}</div>
-                <div className="text-xs text-slate-500">{item.responsible}</div>
+        {/* 개선방향 섹션 */}
+        {!loading && improvementDirection && (
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-1 h-5 bg-blue-500 rounded"></div>
+              <h4 className="font-semibold text-slate-800">📊 개선방향 도출</h4>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
+                {improvementDirection}
               </div>
-            ))}
+            </div>
+          </div>
+        )}
+
+        {/* 액션플랜 리스트 */}
+        {!loading && actionItems.length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-1 h-5 bg-green-500 rounded"></div>
+              <h4 className="font-semibold text-slate-800">✅ 우선순위별 액션플랜</h4>
+            </div>
+            <div className="space-y-3">
+              {actionItems.map((item, idx) => (
+                <div
+                  key={idx}
+                  className={`p-4 rounded-lg border-l-4 ${
+                    item.priority === 'HIGH'
+                      ? 'bg-red-50 border-red-500'
+                      : item.priority === 'MEDIUM'
+                      ? 'bg-amber-50 border-amber-500'
+                      : 'bg-green-50 border-green-500'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`px-2 py-0.5 text-xs font-bold rounded ${
+                          item.priority === 'HIGH'
+                            ? 'bg-red-500 text-white'
+                            : item.priority === 'MEDIUM'
+                            ? 'bg-amber-500 text-white'
+                            : 'bg-green-500 text-white'
+                        }`}
+                      >
+                        {item.priority}
+                      </span>
+                      <span className="text-xs font-medium text-slate-600">{item.label}</span>
+                    </div>
+                    <span className="text-xs text-slate-500">{item.target}</span>
+                  </div>
+                  <div className="font-medium text-slate-800 mb-1">{item.issue}</div>
+                  <div className="text-sm text-slate-600 mb-1">{item.action}</div>
+                  <div className="text-xs text-slate-500">{item.responsible}</div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
