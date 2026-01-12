@@ -79,22 +79,30 @@ export function saveAICache(quarter: string, cache: AIAnalysisCache): boolean {
 export function loadAICache(quarter: string): AIAnalysisCache | null {
   try {
     const filePath = getCacheFilePath(quarter);
-    
-    // Vercel 환경에서는 프로젝트 폴더의 캐시도 확인
     let fileToRead = filePath;
-    if (!fs.existsSync(filePath) && isServerless) {
-      // /tmp에 없으면 프로젝트 폴더 확인
-      const projectCachePath = path.join(process.cwd(), 'ai-cache', quarter.replace('.', '-') + '.json');
-      if (fs.existsSync(projectCachePath)) {
-        fileToRead = projectCachePath;
-        console.log(`✅ 프로젝트 캐시 사용: ${quarter}`);
+    
+    // Vercel 환경에서는 여러 경로 확인
+    if (!fs.existsSync(filePath)) {
+      if (isServerless) {
+        // 1) 프로젝트 ai-cache 폴더
+        const projectPath = path.join(process.cwd(), 'ai-cache', quarter.replace('.', '-') + '.json');
+        // 2) public 폴더 (정적 파일)
+        const publicPath = path.join(process.cwd(), 'public', 'ai-cache', quarter.replace('.', '-') + '.json');
+        
+        if (fs.existsSync(projectPath)) {
+          fileToRead = projectPath;
+          console.log(`✅ 프로젝트 캐시 사용: ${quarter}`);
+        } else if (fs.existsSync(publicPath)) {
+          fileToRead = publicPath;
+          console.log(`✅ public 캐시 사용: ${quarter}`);
+        } else {
+          console.log(`ℹ️ AI 캐시 없음: ${quarter}`);
+          return null;
+        }
       } else {
         console.log(`ℹ️ AI 캐시 없음: ${quarter}`);
         return null;
       }
-    } else if (!fs.existsSync(filePath)) {
-      console.log(`ℹ️ AI 캐시 없음: ${quarter}`);
-      return null;
     }
     
     const data = fs.readFileSync(fileToRead, 'utf-8');
