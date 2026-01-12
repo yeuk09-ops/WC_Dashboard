@@ -80,12 +80,24 @@ export function loadAICache(quarter: string): AIAnalysisCache | null {
   try {
     const filePath = getCacheFilePath(quarter);
     
-    if (!fs.existsSync(filePath)) {
+    // Vercel 환경에서는 프로젝트 폴더의 캐시도 확인
+    let fileToRead = filePath;
+    if (!fs.existsSync(filePath) && isServerless) {
+      // /tmp에 없으면 프로젝트 폴더 확인
+      const projectCachePath = path.join(process.cwd(), 'ai-cache', quarter.replace('.', '-') + '.json');
+      if (fs.existsSync(projectCachePath)) {
+        fileToRead = projectCachePath;
+        console.log(`✅ 프로젝트 캐시 사용: ${quarter}`);
+      } else {
+        console.log(`ℹ️ AI 캐시 없음: ${quarter}`);
+        return null;
+      }
+    } else if (!fs.existsSync(filePath)) {
       console.log(`ℹ️ AI 캐시 없음: ${quarter}`);
       return null;
     }
     
-    const data = fs.readFileSync(filePath, 'utf-8');
+    const data = fs.readFileSync(fileToRead, 'utf-8');
     const cache = JSON.parse(data) as AIAnalysisCache;
     
     console.log(`✅ AI 캐시 로드: ${quarter} (생성: ${cache.generatedAt})`);
