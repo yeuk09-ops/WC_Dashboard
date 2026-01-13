@@ -158,28 +158,52 @@ export async function POST(request: NextRequest) {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     const allIssues: IssueScore[] = [];
     
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`🔍 디버깅: ${entity} 법인 점수 계산 시작`);
+    console.log(`data.summary exists: ${!!data.summary}`);
+    console.log(`data.summary.yoyChanges exists: ${!!data.summary?.yoyChanges}`);
+    console.log(`data.summary.turnoverMetrics exists: ${!!data.summary?.turnoverMetrics}`);
+    
     // 연결 WC를 기준으로 비중 계산
     const consolidatedWC = data.wcData?.find((d: any) => 
       d.QUARTER === data.currentQuarter && d.ENTITY === '연결'
     )?.WC || 1;
+    
+    console.log(`consolidatedWC: ${consolidatedWC}`);
 
     // 각 법인별로 이슈 점수화
     if (data.summary?.yoyChanges && data.summary?.turnoverMetrics) {
+      console.log(`yoyChanges count: ${data.summary.yoyChanges.length}`);
+      console.log(`turnoverMetrics count: ${data.summary.turnoverMetrics.length}`);
       for (const yoyChange of data.summary.yoyChanges) {
         const entityName = yoyChange.entity;
+        
+        console.log(`\n--- ${entityName} 법인 분석 ---`);
+        console.log(`currentWC: ${yoyChange.currentWC}, prevWC: ${yoyChange.prevWC || 'N/A'}`);
+        console.log(`currentInventory: ${yoyChange.currentInventory}, prevInventory: ${yoyChange.prevInventory}`);
+        console.log(`currentReceivables: ${yoyChange.currentReceivables}, prevReceivables: ${yoyChange.prevReceivables}`);
+        
         const turnoverMetric = data.summary.turnoverMetrics.find(
           (t: any) => t.entity === entityName
         );
 
-        if (!turnoverMetric) continue;
+        if (!turnoverMetric) {
+          console.log(`❌ ${entityName}: turnoverMetric not found`);
+          continue;
+        }
+        
+        console.log(`turnoverMetric - dso: ${turnoverMetric.dso}, dio: ${turnoverMetric.dio}, dpo: ${turnoverMetric.dpo}`);
 
         // 연결 대비 비중 계산
         const entityWeight = (yoyChange.currentWC / consolidatedWC) * 100;
+        console.log(`entityWeight: ${entityWeight.toFixed(1)}%`);
 
         // 재고 이슈 점수화
         const inventoryChangeRate = yoyChange.prevInventory > 0
           ? ((yoyChange.currentInventory - yoyChange.prevInventory) / yoyChange.prevInventory) * 100
           : 0;
+        
+        console.log(`inventoryChangeRate: ${inventoryChangeRate.toFixed(1)}%`);
         
         // prevDIO 계산: turnoverMetric.prevDIO가 없으면 prev 데이터에서 계산
         let prevDIO = turnoverMetric.prevDIO;
@@ -188,8 +212,10 @@ export async function POST(request: NextRequest) {
             (t: any) => t.quarter === data.previousQuarter && t.entity === entityName
           );
           prevDIO = prevTurnover?.dio || 0;
+          console.log(`prevDIO calculated from turnoverData: ${prevDIO}`);
         }
         const dioChange = turnoverMetric.dio - prevDIO;
+        console.log(`dioChange: ${turnoverMetric.dio} - ${prevDIO} = ${dioChange}`);
         
         if (inventoryChangeRate > 0 && dioChange > 0) {
           const inventoryScore = calculatePriorityScore(
@@ -197,6 +223,7 @@ export async function POST(request: NextRequest) {
             dioChange,
             entityWeight
           );
+          console.log(`✅ ${entityName} 재고 - score: ${inventoryScore}, priority: ${assignPriority(inventoryScore)}`);
           if (inventoryScore > 0) {
             allIssues.push({
               entity: entityName,
@@ -209,12 +236,16 @@ export async function POST(request: NextRequest) {
               amountChange: (yoyChange.currentInventory - yoyChange.prevInventory) / 100, // 억원
             });
           }
+        } else {
+          console.log(`❌ ${entityName} 재고 스킵: inventoryChangeRate=${inventoryChangeRate.toFixed(1)}%, dioChange=${dioChange.toFixed(1)}일`);
         }
 
         // 매출채권 이슈 점수화
         const receivablesChangeRate = yoyChange.prevReceivables > 0
           ? ((yoyChange.currentReceivables - yoyChange.prevReceivables) / yoyChange.prevReceivables) * 100
           : 0;
+        
+        console.log(`receivablesChangeRate: ${receivablesChangeRate.toFixed(1)}%`);
         
         // prevDSO 계산: turnoverMetric.prevDSO가 없으면 prev 데이터에서 계산
         let prevDSO = turnoverMetric.prevDSO;
@@ -223,8 +254,10 @@ export async function POST(request: NextRequest) {
             (t: any) => t.quarter === data.previousQuarter && t.entity === entityName
           );
           prevDSO = prevTurnover?.dso || 0;
+          console.log(`prevDSO calculated from turnoverData: ${prevDSO}`);
         }
         const dsoChange = turnoverMetric.dso - prevDSO;
+        console.log(`dsoChange: ${turnoverMetric.dso} - ${prevDSO} = ${dsoChange}`);
         
         if (receivablesChangeRate > 0 && dsoChange > 0) {
           const receivablesScore = calculatePriorityScore(
@@ -232,6 +265,7 @@ export async function POST(request: NextRequest) {
             dsoChange,
             entityWeight
           );
+          console.log(`✅ ${entityName} 매출채권 - score: ${receivablesScore}, priority: ${assignPriority(receivablesScore)}`);
           if (receivablesScore > 0) {
             allIssues.push({
               entity: entityName,
@@ -244,6 +278,8 @@ export async function POST(request: NextRequest) {
               amountChange: (yoyChange.currentReceivables - yoyChange.prevReceivables) / 100, // 억원
             });
           }
+        } else {
+          console.log(`❌ ${entityName} 매출채권 스킵: receivablesChangeRate=${receivablesChangeRate.toFixed(1)}%, dsoChange=${dsoChange.toFixed(1)}일`);
         }
       }
     }
@@ -254,11 +290,15 @@ export async function POST(request: NextRequest) {
     allIssues.sort((a, b) => b.score - a.score);
 
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('📊 전체 법인 이슈 점수화 결과:');
-    allIssues.forEach((issue, index) => {
-      console.log(`${index + 1}위. ${issue.entity} ${issue.category}: ${issue.score}점 → ${issue.priority}`);
-      console.log(`   증감률 ${issue.changeRate.toFixed(1)}%, CCC 영향 ${issue.cccImpact.toFixed(0)}일, 비중 ${issue.entityWeight.toFixed(1)}%`);
-    });
+    console.log(`📊 전체 법인 이슈 점수화 결과 (총 ${allIssues.length}개):`);
+    if (allIssues.length === 0) {
+      console.log('⚠️ 악화된 이슈가 없습니다!');
+    } else {
+      allIssues.forEach((issue, index) => {
+        console.log(`${index + 1}위. ${issue.entity} ${issue.category}: ${issue.score}점 → ${issue.priority}`);
+        console.log(`   증감률 ${issue.changeRate.toFixed(1)}%, CCC 영향 ${issue.cccImpact.toFixed(0)}일, 비중 ${issue.entityWeight.toFixed(1)}%`);
+      });
+    }
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -276,10 +316,14 @@ export async function POST(request: NextRequest) {
       filteredIssues = allIssues.filter(issue => issue.entity === entity);
     }
 
-    console.log(`\n📌 ${entity} 법인 필터링 결과:`);
-    filteredIssues.forEach((issue, index) => {
-      console.log(`${index + 1}. ${issue.entity} ${issue.category}: ${issue.priority} (전체 ${allIssues.indexOf(issue) + 1}위, ${issue.score}점)`);
-    });
+    console.log(`\n📌 ${entity} 법인 필터링 결과 (${filteredIssues.length}개):`);
+    if (filteredIssues.length === 0) {
+      console.log(`⚠️ ${entity} 법인에 해당하는 이슈가 없습니다!`);
+    } else {
+      filteredIssues.forEach((issue, index) => {
+        console.log(`${index + 1}. ${issue.entity} ${issue.category}: ${issue.priority} (전체 ${allIssues.indexOf(issue) + 1}위, ${issue.score}점)`);
+      });
+    }
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
     const prompt = `당신은 F&F 그룹의 재무 분석 전문가입니다.
