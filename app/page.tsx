@@ -5,7 +5,7 @@ import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
   ResponsiveContainer, RadarChart, Radar, PolarGrid, 
-  PolarAngleAxis, PolarRadiusAxis, ComposedChart
+  PolarAngleAxis, PolarRadiusAxis, ComposedChart, ReferenceLine
 } from 'recharts';
 import { TrendingUp, TrendingDown, DollarSign, Package, FileText, RefreshCw, AlertTriangle, CheckCircle, AlertCircle, Activity } from 'lucide-react';
 import AIInsight from './components/AIInsight';
@@ -36,6 +36,58 @@ const pieColors = ['#0ea5e9', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6'];
 const toOk = (val: number) => Math.round(val / 10) / 10;
 const formatNum = (n: number) => n.toLocaleString('ko-KR');
 const formatOk = (n: number) => `${formatNum(toOk(n))}억`;
+
+// 커스텀 툴팁 컴포넌트
+const CustomTooltip = ({ active, payload, label, valueType = '억', showYoY = false }: any) => {
+  if (!active || !payload || !payload.length) return null;
+
+  return (
+    <div className="bg-white border-2 border-slate-300 rounded-lg shadow-lg p-3">
+      <p className="font-bold text-slate-800 mb-2 border-b border-slate-200 pb-1">
+        {label}
+      </p>
+      {payload.map((entry: any, index: number) => {
+        const value = entry.value;
+        const name = entry.name || entry.dataKey;
+        const color = entry.color || entry.stroke || entry.fill;
+        
+        // YoY 데이터가 있는 경우
+        const yoyValue = entry.payload[`${entry.dataKey}_yoy`];
+        
+        return (
+          <div key={index} className="flex items-center justify-between gap-4 py-1">
+            <div className="flex items-center gap-2">
+              <div 
+                className="w-3 h-3 rounded-sm" 
+                style={{ backgroundColor: color }}
+              />
+              <span className="text-sm text-slate-700">{name}</span>
+            </div>
+            <div className="text-right">
+              <span className="font-bold text-slate-900">
+                {typeof value === 'number' 
+                  ? `${value.toLocaleString('ko-KR')}${valueType}` 
+                  : value}
+              </span>
+              {showYoY && yoyValue !== undefined && (
+                <div className={`text-xs font-medium ${
+                  valueType === '일' 
+                    ? (yoyValue > 0 ? 'text-red-600' : 'text-green-600')
+                    : (yoyValue >= 0 ? 'text-red-600' : 'text-green-600')
+                }`}>
+                  {valueType === '일' 
+                    ? `${yoyValue > 0 ? '+' : ''}${yoyValue.toFixed(0)}일 YoY`
+                    : `${yoyValue > 0 ? '+' : ''}${yoyValue.toFixed(1)}% YoY`
+                  }
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 // 자금 효과 계산 함수 (원본 데이터: 100만원 단위)
 const calculateCashImpact = (currentRevenue: number, currentCOGS: number) => {
@@ -106,13 +158,27 @@ export default function Dashboard() {
   const prevConsolidated = wcData.find(d => d.QUARTER === prevYear && d.ENTITY === '연결');
   const yoyChange = (c: number, p: number) => p ? ((c - p) / p * 100) : 0;
 
-  const consolidatedTrend = wcData.filter(d => d.ENTITY === '연결').map(d => ({
-    quarter: d.QUARTER,
-    재고자산: toOk(d.INVENTORY),
-    매출채권: toOk(d.RECEIVABLES),
-    매입채무: toOk(d.PAYABLES),
-    운전자본: toOk(d.WC)
-  }));
+  const consolidatedTrend = wcData.filter(d => d.ENTITY === '연결').map(d => {
+    // 전년동기 데이터 찾기
+    const prevYearQuarter = d.QUARTER.replace(/(\d{2})\./, (m, y) => {
+      const prevY = (parseInt(y) - 1).toString().padStart(2, '0');
+      return `${prevY}.`;
+    });
+    const prevData = wcData.find(pd => pd.QUARTER === prevYearQuarter && pd.ENTITY === '연결');
+    
+    return {
+      quarter: d.QUARTER,
+      재고자산: toOk(d.INVENTORY),
+      매출채권: toOk(d.RECEIVABLES),
+      매입채무: toOk(d.PAYABLES),
+      운전자본: toOk(d.WC),
+      // YoY 증감률 추가
+      재고자산_yoy: prevData ? yoyChange(d.INVENTORY, prevData.INVENTORY) : 0,
+      매출채권_yoy: prevData ? yoyChange(d.RECEIVABLES, prevData.RECEIVABLES) : 0,
+      매입채무_yoy: prevData ? yoyChange(d.PAYABLES, prevData.PAYABLES) : 0,
+      운전자본_yoy: prevData ? yoyChange(d.WC, prevData.WC) : 0,
+    };
+  });
 
   const entityData253Q = wcData.filter(d => d.QUARTER === '25.3Q' && d.ENTITY !== '연결');
   const pieData = entityData253Q.map((d, i) => ({
@@ -127,9 +193,21 @@ export default function Dashboard() {
 
   const cccTrendData = quarters.map(q => {
     const row: Record<string, any> = { quarter: q };
+    // 전년동기 분기 계산
+    const prevYearQuarter = q.replace(/(\d{2})\./, (m, y) => {
+      const prevY = (parseInt(y) - 1).toString().padStart(2, '0');
+      return `${prevY}.`;
+    });
+    
     entities.forEach(e => {
       const item = turnoverData.find(t => t.quarter === q && t.entity === e);
-      if (item) row[e] = item.ccc;
+      const prevItem = turnoverData.find(t => t.quarter === prevYearQuarter && t.entity === e);
+      
+      if (item) {
+        row[e] = item.ccc;
+        // YoY 변화 (일수 차이)
+        row[`${e}_yoy`] = prevItem ? item.ccc - prevItem.ccc : 0;
+      }
     });
     return row;
   });
@@ -289,16 +367,16 @@ export default function Dashboard() {
                       <div className="text-xs text-slate-500 mb-1">{item.label}</div>
                       <div className="text-2xl font-bold text-slate-800">
                         {item.unit === '억' ? formatOk(item.value) : `${item.value}${item.unit}`}
-                      </div>
-                    </div>
-                    <item.icon className={`w-5 h-5 text-${item.color}-500 flex-shrink-0`} />
                   </div>
+                </div>
+                    <item.icon className={`w-5 h-5 text-${item.color}-500 flex-shrink-0`} />
+          </div>
                   <div className="text-xs text-slate-400 mb-1">{item.desc}</div>
                   
                   {/* 전년동기 값 표시 */}
                   <div className="text-xs text-slate-500 mb-1.5">
                     전년동기: {item.unit === '억' ? formatOk(item.prev) : `${item.prev}${item.unit}`}
-                  </div>
+              </div>
                   
                   {/* YoY 증감 */}
                   <div className={`flex items-center text-sm font-medium ${
@@ -306,16 +384,18 @@ export default function Dashboard() {
                   }`}>
                     {isPositive ? <TrendingDown className="w-3 h-3 mr-1" /> : <TrendingUp className="w-3 h-3 mr-1" />}
                     {item.unit === '일' ? `${change > 0 ? '+' : ''}${change}` : `${change > 0 ? '+' : ''}${change.toFixed(1)}%`} YoY (vs {prevYear})
-                  </div>
+          </div>
                 </div>
               );
             })}
           </div>
 
           {/* 차트 영역 */}
-          <div className="grid grid-cols-3 gap-6">
-            {/* 연결 운전자본 추이 */}
-            <div className="col-span-2 bg-white rounded-lg p-5 shadow-sm border border-slate-200">
+          <div className="grid grid-cols-2 gap-6">
+            {/* 왼쪽 영역: 연결 운전자본 추이 + YoY 추세 */}
+            <div className="space-y-6">
+              {/* 연결 운전자본 추이 */}
+              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-slate-800">연결 운전자본 추이</h3>
           <div className="flex gap-2">
@@ -352,7 +432,7 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="quarter" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: number) => [`${v}억`, '']} />
+                  <Tooltip content={<CustomTooltip valueType="억" showYoY={true} />} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   {showItems.ar && <Bar dataKey="재고자산" fill={colors.inventory} />}
                   {showItems.inv && <Bar dataKey="매출채권" fill={colors.receivables} />}
@@ -364,7 +444,111 @@ export default function Dashboard() {
               </ResponsiveContainer>
             </div>
 
-            {/* 법인별 구성비 + 인사이트 */}
+              {/* 25년도 분기별 YoY 추세 */}
+              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
+                <h3 className="font-semibold text-slate-800 mb-4">25년도 분기별 YoY 증감 추세</h3>
+              <ResponsiveContainer width="100%" height={280}>
+                  <LineChart data={(() => {
+                    const quarters25 = ['25.1Q', '25.2Q', '25.3Q'];
+                    return quarters25.map(q => {
+                      const current = wcData.find(d => d.QUARTER === q && d.ENTITY === '연결');
+                      const prevYearQuarter = q.replace('25.', '24.');
+                      const prev = wcData.find(d => d.QUARTER === prevYearQuarter && d.ENTITY === '연결');
+                      
+                      return {
+                        quarter: q,
+                        재고자산: current && prev ? yoyChange(current.INVENTORY, prev.INVENTORY) : 0,
+                        매출채권: current && prev ? yoyChange(current.RECEIVABLES, prev.RECEIVABLES) : 0,
+                        매입채무: current && prev ? yoyChange(current.PAYABLES, prev.PAYABLES) : 0,
+                        운전자본: current && prev ? yoyChange(current.WC, prev.WC) : 0,
+                      };
+                    });
+                  })()}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="quarter" tick={{ fontSize: 11 }} />
+                    <YAxis 
+                      tick={{ fontSize: 11 }} 
+                      label={{ value: 'YoY (%)', angle: -90, position: 'insideLeft', style: { fontSize: 11 } }}
+                    />
+                    <Tooltip 
+                      content={({ active, payload, label }: any) => {
+                        if (!active || !payload || !payload.length) return null;
+                        // 이름이 있는 항목만 필터링 (기준선 제외)
+                        const validPayload = payload.filter((entry: any) => entry.name && entry.name !== '');
+                        if (validPayload.length === 0) return null;
+                        
+                        return (
+                          <div className="bg-white border-2 border-slate-300 rounded-lg shadow-lg p-3">
+                            <p className="font-bold text-slate-800 mb-2 border-b border-slate-200 pb-1">
+                              {label}
+                            </p>
+                            {validPayload.map((entry: any, index: number) => (
+                              <div key={index} className="flex items-center justify-between gap-4 py-1">
+                                <div className="flex items-center gap-2">
+                                  <div 
+                                    className="w-3 h-3 rounded-sm" 
+                                    style={{ backgroundColor: entry.color }}
+                                  />
+                                  <span className="text-sm text-slate-700">{entry.name}</span>
+                                </div>
+                                <div className="text-right">
+                                  <span className={`font-bold text-sm ${
+                                    entry.value >= 0 ? 'text-red-600' : 'text-green-600'
+                                  }`}>
+                                    {entry.value > 0 ? '+' : ''}{entry.value.toFixed(1)}%
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="재고자산" 
+                      stroke={colors.inventory} 
+                      strokeWidth={2} 
+                      dot={{ r: 4, fill: colors.inventory }} 
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="매출채권" 
+                      stroke={colors.receivables} 
+                      strokeWidth={2} 
+                      dot={{ r: 4, fill: colors.receivables }} 
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="매입채무" 
+                      stroke={colors.payables} 
+                      strokeWidth={2} 
+                      dot={{ r: 4, fill: colors.payables }} 
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="운전자본" 
+                      stroke={colors.wc} 
+                      strokeWidth={3} 
+                      dot={{ r: 5, fill: colors.wc }} 
+                    />
+                    {/* 기준선 (0%) - ReferenceLine 사용 (툴팁에 나타나지 않음) */}
+                    <ReferenceLine 
+                      y={0} 
+                      stroke="#94a3b8" 
+                      strokeWidth={1} 
+                      strokeDasharray="5 5" 
+                    />
+                  </LineChart>
+              </ResponsiveContainer>
+                <div className="mt-2 text-xs text-slate-500 text-center">
+                  ※ 전년 동기(24년) 대비 증감률 (단위: %)
+                </div>
+              </div>
+            </div>
+
+            {/* 오른쪽 영역: 법인별 구성비 + 인사이트 */}
             <div className="space-y-6">
               {/* 파이 차트 */}
               <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
@@ -385,7 +569,7 @@ export default function Dashboard() {
                         <Cell key={`cell-${index}`} fill={pieColors[index]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(v: number) => [`${v}억`, '']} />
+                    <Tooltip content={<CustomTooltip valueType="억" showYoY={false} />} />
                   </PieChart>
               </ResponsiveContainer>
                 <div className="mt-3 space-y-1">
@@ -394,7 +578,7 @@ export default function Dashboard() {
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded" style={{ backgroundColor: pieColors[idx] }} />
                         <span className="text-slate-600">{item.name}</span>
-                      </div>
+            </div>
                       <span className="font-medium">{item.value.toFixed(1)}억 ({item.percentage.toFixed(1)}%)</span>
                     </div>
                   ))}
@@ -750,9 +934,9 @@ export default function Dashboard() {
                   <div className="flex items-baseline gap-2">
                     <div className="text-3xl font-bold" style={{ color: entityColors[selectedEntity] }}>
                       {item.value}
-                    </div>
+              </div>
                     <div className="text-base text-slate-500">일</div>
-                  </div>
+          </div>
                   <div className={`text-sm mt-2 font-medium ${
                     item.label === 'DPO'
                       ? (change > 0 ? 'text-green-600' : 'text-red-600')
@@ -775,7 +959,7 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="quarter" tick={{ fontSize: 11 }} />
                   <YAxis domain={[0, 140]} tick={{ fontSize: 11 }} />
-                  <Tooltip />
+                  <Tooltip content={<CustomTooltip valueType="일" showYoY={true} />} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   {entities.map(e => (
                     <Line
@@ -827,10 +1011,10 @@ export default function Dashboard() {
                     />
                   )}
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Tooltip />
+                  <Tooltip content={<CustomTooltip valueType="일" showYoY={false} />} />
                 </RadarChart>
             </ResponsiveContainer>
-          </div>
+        </div>
         </div>
 
           {/* YoY 비교 분석 + AI 인사이트 */}
@@ -1031,7 +1215,7 @@ export default function Dashboard() {
                     (turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity)?.ccc || 0)) > 0 ? '증가 추세 (악화)' : '감소 추세 (개선)',
                 }}
               />
-            </div>
+          </div>
           </div>
 
           {/* 연결 회전율 인사이트 */}
@@ -1123,8 +1307,8 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
-            </div>
-                  </div>
+          </div>
+        </div>
       )}
 
       {/* 추세 탭 */}
@@ -1153,37 +1337,75 @@ export default function Dashboard() {
               <h3 className="font-semibold text-slate-800 mb-4">{selectedEntity} YoY 추세 비교</h3>
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={[
-                  { quarter: '1Q', '24년': toOk(wcData.find(d => d.QUARTER === '24.1Q' && d.ENTITY === selectedEntity)?.WC || 0), '25년': toOk(wcData.find(d => d.QUARTER === '25.1Q' && d.ENTITY === selectedEntity)?.WC || 0) },
-                  { quarter: '2Q', '24년': toOk(wcData.find(d => d.QUARTER === '24.2Q' && d.ENTITY === selectedEntity)?.WC || 0), '25년': toOk(wcData.find(d => d.QUARTER === '25.2Q' && d.ENTITY === selectedEntity)?.WC || 0) },
-                  { quarter: '3Q', '24년': toOk(wcData.find(d => d.QUARTER === '24.3Q' && d.ENTITY === selectedEntity)?.WC || 0), '25년': toOk(wcData.find(d => d.QUARTER === '25.3Q' && d.ENTITY === selectedEntity)?.WC || 0) },
+                  { 
+                    quarter: '1Q', 
+                    '24년': toOk(wcData.find(d => d.QUARTER === '24.1Q' && d.ENTITY === selectedEntity)?.WC || 0), 
+                    '25년': toOk(wcData.find(d => d.QUARTER === '25.1Q' && d.ENTITY === selectedEntity)?.WC || 0),
+                    '25년_yoy': yoyChange(
+                      wcData.find(d => d.QUARTER === '25.1Q' && d.ENTITY === selectedEntity)?.WC || 0,
+                      wcData.find(d => d.QUARTER === '24.1Q' && d.ENTITY === selectedEntity)?.WC || 0
+                    )
+                  },
+                  { 
+                    quarter: '2Q', 
+                    '24년': toOk(wcData.find(d => d.QUARTER === '24.2Q' && d.ENTITY === selectedEntity)?.WC || 0), 
+                    '25년': toOk(wcData.find(d => d.QUARTER === '25.2Q' && d.ENTITY === selectedEntity)?.WC || 0),
+                    '25년_yoy': yoyChange(
+                      wcData.find(d => d.QUARTER === '25.2Q' && d.ENTITY === selectedEntity)?.WC || 0,
+                      wcData.find(d => d.QUARTER === '24.2Q' && d.ENTITY === selectedEntity)?.WC || 0
+                    )
+                  },
+                  { 
+                    quarter: '3Q', 
+                    '24년': toOk(wcData.find(d => d.QUARTER === '24.3Q' && d.ENTITY === selectedEntity)?.WC || 0), 
+                    '25년': toOk(wcData.find(d => d.QUARTER === '25.3Q' && d.ENTITY === selectedEntity)?.WC || 0),
+                    '25년_yoy': yoyChange(
+                      wcData.find(d => d.QUARTER === '25.3Q' && d.ENTITY === selectedEntity)?.WC || 0,
+                      wcData.find(d => d.QUARTER === '24.3Q' && d.ENTITY === selectedEntity)?.WC || 0
+                    )
+                  },
                   { quarter: '4Q', '24년': toOk(wcData.find(d => d.QUARTER === '24.4Q' && d.ENTITY === selectedEntity)?.WC || 0), '25년': null },
                 ]}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="quarter" />
                   <YAxis />
-                  <Tooltip formatter={(v: number) => [`${v}억`, '']} />
+                  <Tooltip content={<CustomTooltip valueType="억" showYoY={true} />} />
                   <Legend />
                   <Line type="monotone" dataKey="24년" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 4 }} />
                   <Line type="monotone" dataKey="25년" stroke={entityColors[selectedEntity]} strokeWidth={3} dot={{ r: 5, fill: entityColors[selectedEntity] }} />
                 </LineChart>
               </ResponsiveContainer>
-            </div>
+                  </div>
 
             {/* 운전자본 구성 추이 (선택된 법인) */}
             <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
               <h3 className="font-semibold text-slate-800 mb-4">{selectedEntity} 운전자본 구성 추이</h3>
               <ResponsiveContainer width="100%" height={280}>
-                <ComposedChart data={wcData.filter(d => d.ENTITY === selectedEntity).map(d => ({
-                  quarter: d.QUARTER,
-                  재고자산: toOk(d.INVENTORY),
-                  매출채권: toOk(d.RECEIVABLES),
-                  매입채무: toOk(d.PAYABLES),
-                  운전자본: toOk(d.WC)
-                }))}>
+                <ComposedChart data={wcData.filter(d => d.ENTITY === selectedEntity).map(d => {
+                  // 전년동기 데이터 찾기
+                  const prevYearQuarter = d.QUARTER.replace(/(\d{2})\./, (m, y) => {
+                    const prevY = (parseInt(y) - 1).toString().padStart(2, '0');
+                    return `${prevY}.`;
+                  });
+                  const prevData = wcData.find(pd => pd.QUARTER === prevYearQuarter && pd.ENTITY === selectedEntity);
+                  
+                  return {
+                    quarter: d.QUARTER,
+                    재고자산: toOk(d.INVENTORY),
+                    매출채권: toOk(d.RECEIVABLES),
+                    매입채무: toOk(d.PAYABLES),
+                    운전자본: toOk(d.WC),
+                    // YoY 증감률 추가
+                    재고자산_yoy: prevData ? yoyChange(d.INVENTORY, prevData.INVENTORY) : 0,
+                    매출채권_yoy: prevData ? yoyChange(d.RECEIVABLES, prevData.RECEIVABLES) : 0,
+                    매입채무_yoy: prevData ? yoyChange(d.PAYABLES, prevData.PAYABLES) : 0,
+                    운전자본_yoy: prevData ? yoyChange(d.WC, prevData.WC) : 0,
+                  };
+                })}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="quarter" tick={{ fontSize: 11 }} />
                   <YAxis />
-                  <Tooltip formatter={(v: number) => [`${v}억`, '']} />
+                  <Tooltip content={<CustomTooltip valueType="억" showYoY={true} />} />
                   <Legend />
                   <Bar dataKey="재고자산" fill={colors.inventory} />
                   <Bar dataKey="매출채권" fill={colors.receivables} />
@@ -1191,7 +1413,7 @@ export default function Dashboard() {
                   <Line type="monotone" dataKey="운전자본" stroke={entityColors[selectedEntity]} strokeWidth={3} dot={{ r: 4, fill: entityColors[selectedEntity] }} />
                 </ComposedChart>
               </ResponsiveContainer>
-            </div>
+              </div>
 
             {/* 법인별 3Q YoY 비교 (전체) */}
             <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
@@ -1200,17 +1422,19 @@ export default function Dashboard() {
                 <BarChart data={entities.slice(0, -1).map(entity => {
                   const current = wcData.find(d => d.QUARTER === '25.3Q' && d.ENTITY === entity);
                   const prev = wcData.find(d => d.QUARTER === '24.3Q' && d.ENTITY === entity);
+                  const yoyVal = yoyChange(current?.WC || 0, prev?.WC || 0);
                   return {
                     entity,
                     '24.3Q': toOk(prev?.WC || 0),
                     '25.3Q': toOk(current?.WC || 0),
-                    yoy: yoyChange(current?.WC || 0, prev?.WC || 0)
+                    '25.3Q_yoy': yoyVal,
+                    yoy: yoyVal
                   };
                 })}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="entity" tick={{ fontSize: 10 }} />
                   <YAxis />
-                  <Tooltip formatter={(v: number) => [`${v}억`, '']} />
+                  <Tooltip content={<CustomTooltip valueType="억" showYoY={true} />} />
                   <Legend />
                   <Bar dataKey="24.3Q" fill="#94a3b8" opacity={selectedEntity === '연결' ? 0.5 : 1} />
                   <Bar dataKey="25.3Q" fill="#3b82f6" />
@@ -1227,12 +1451,12 @@ export default function Dashboard() {
                       <div className={isSelected ? 'text-slate-800' : 'text-slate-500'}>{entity}</div>
                       <div className={`${isSelected ? 'font-extrabold' : 'font-bold'} ${change >= 0 ? 'text-red-600' : 'text-green-600'}`}>
                         {change > 0 ? '+' : ''}{change.toFixed(1)}%
-                      </div>
-                    </div>
+            </div>
+                  </div>
                   );
                 })}
               </div>
-            </div>
+              </div>
 
             {/* 회전일수 추이 (선택된 법인) */}
             <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
@@ -1240,18 +1464,30 @@ export default function Dashboard() {
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={quarters.map(q => {
                   const turn = turnoverData.find(t => t.quarter === q && t.entity === selectedEntity);
+                  // 전년동기 데이터 찾기
+                  const prevYearQuarter = q.replace(/(\d{2})\./, (m, y) => {
+                    const prevY = (parseInt(y) - 1).toString().padStart(2, '0');
+                    return `${prevY}.`;
+                  });
+                  const prevTurn = turnoverData.find(t => t.quarter === prevYearQuarter && t.entity === selectedEntity);
+                  
                   return {
                     quarter: q,
                     DSO: turn?.dso || 0,
                     DIO: turn?.dio || 0,
                     DPO: turn?.dpo || 0,
                     CCC: turn?.ccc || 0,
+                    // YoY 변화 (일수 차이)
+                    DSO_yoy: prevTurn ? (turn?.dso || 0) - prevTurn.dso : 0,
+                    DIO_yoy: prevTurn ? (turn?.dio || 0) - prevTurn.dio : 0,
+                    DPO_yoy: prevTurn ? (turn?.dpo || 0) - prevTurn.dpo : 0,
+                    CCC_yoy: prevTurn ? (turn?.ccc || 0) - prevTurn.ccc : 0,
                   };
                 })}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="quarter" tick={{ fontSize: 11 }} />
                   <YAxis />
-                  <Tooltip />
+                  <Tooltip content={<CustomTooltip valueType="일" showYoY={true} />} />
                   <Legend />
                   <Line type="monotone" dataKey="DSO" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} />
                   <Line type="monotone" dataKey="DIO" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} />
@@ -1259,7 +1495,7 @@ export default function Dashboard() {
                   <Line type="monotone" dataKey="CCC" stroke={entityColors[selectedEntity]} strokeWidth={3} dot={{ r: 5, fill: entityColors[selectedEntity] }} />
                 </LineChart>
               </ResponsiveContainer>
-          </div>
+            </div>
           </div>
 
           {/* AI 액션플랜 (개선목표) */}

@@ -29,17 +29,13 @@ function calculatePriorityScore(
   cccImpact: number, // CCC 영향 (일수 변화)
   entityWeight: number, // 연결 대비 비중 (%)
 ): number {
-  // 개선된 항목은 점수 0
-  if (changeRate <= 0 || cccImpact < 0) {
-    return 0;
-  }
-
-  // 1. 증감률 점수 (최대 50점)
+  // 1. 증감률 점수 (최대 40점)
   let changeScore = 0;
-  if (changeRate >= 30) changeScore = 50;
-  else if (changeRate >= 20) changeScore = 40;
-  else if (changeRate >= 10) changeScore = 30;
-  else if (changeRate >= 5) changeScore = 20;
+  if (changeRate >= 30) changeScore = 40;
+  else if (changeRate >= 20) changeScore = 35;
+  else if (changeRate >= 15) changeScore = 30;
+  else if (changeRate >= 10) changeScore = 25;
+  else if (changeRate >= 5) changeScore = 15;
   else changeScore = 10;
 
   // 2. CCC 영향 점수 (최대 30점)
@@ -51,15 +47,23 @@ function calculatePriorityScore(
   else if (cccImpact >= 5) cccScore = 10;
   else cccScore = 5;
 
-  // 3. 비중 점수 (최대 20점)
+  // 3. 비중 점수 (최대 40점 - 가중치 2배 증가!)
   let weightScore = 0;
-  if (entityWeight >= 30) weightScore = 20;
-  else if (entityWeight >= 20) weightScore = 15;
-  else if (entityWeight >= 10) weightScore = 10;
-  else if (entityWeight >= 5) weightScore = 5;
-  else weightScore = 0;
+  if (entityWeight >= 40) weightScore = 40;
+  else if (entityWeight >= 30) weightScore = 35;
+  else if (entityWeight >= 20) weightScore = 30;
+  else if (entityWeight >= 10) weightScore = 20;
+  else if (entityWeight >= 5) weightScore = 10;
+  else weightScore = 5; // 5% 미만도 최소 5점
 
-  return changeScore + cccScore + weightScore;
+  let totalScore = changeScore + cccScore + weightScore;
+  
+  // 4. 비중 10% 미만 법인은 최대 70점 제한 (HIGH 방지)
+  if (entityWeight < 10 && totalScore > 70) {
+    totalScore = 70;
+  }
+
+  return totalScore;
 }
 
 function assignPriority(score: number): 'HIGH' | 'MEDIUM' | 'LOW' {
@@ -217,24 +221,30 @@ export async function POST(request: NextRequest) {
         const dioChange = turnoverMetric.dio - prevDIO;
         console.log(`dioChange: ${turnoverMetric.dio} - ${prevDIO} = ${dioChange}`);
         
-        if (inventoryChangeRate > 0 && dioChange > 0) {
-          const inventoryScore = calculatePriorityScore(
-            inventoryChangeRate,
-            dioChange,
-            entityWeight
-          );
-          console.log(`✅ ${entityName} 재고 - score: ${inventoryScore}, priority: ${assignPriority(inventoryScore)}`);
-          if (inventoryScore > 0) {
-            allIssues.push({
-              entity: entityName,
-              category: '재고',
-              score: inventoryScore,
-              priority: assignPriority(inventoryScore),
-              changeRate: inventoryChangeRate,
-              cccImpact: dioChange,
-              entityWeight,
-              amountChange: (yoyChange.currentInventory - yoyChange.prevInventory) / 100, // 억원
-            });
+        // 재고 이슈: 회전일수 악화(+5일 이상) OR 금액 대폭 증가(+15% 이상)
+        if (dioChange > 5 || inventoryChangeRate > 15) {
+          // 단, 둘 다 크게 개선된 경우는 제외
+          if (!(inventoryChangeRate < -10 && dioChange < -10)) {
+            const inventoryScore = calculatePriorityScore(
+              Math.max(0, inventoryChangeRate), // 음수는 0으로
+              Math.max(0, dioChange), // 음수는 0으로
+              entityWeight
+            );
+            console.log(`✅ ${entityName} 재고 - score: ${inventoryScore}, priority: ${assignPriority(inventoryScore)}`);
+            if (inventoryScore > 0) {
+              allIssues.push({
+                entity: entityName,
+                category: '재고',
+                score: inventoryScore,
+                priority: assignPriority(inventoryScore),
+                changeRate: inventoryChangeRate,
+                cccImpact: dioChange,
+                entityWeight,
+                amountChange: (yoyChange.currentInventory - yoyChange.prevInventory) / 100, // 억원
+              });
+            }
+          } else {
+            console.log(`✅ ${entityName} 재고 개선됨: inventoryChangeRate=${inventoryChangeRate.toFixed(1)}%, dioChange=${dioChange.toFixed(1)}일`);
           }
         } else {
           console.log(`❌ ${entityName} 재고 스킵: inventoryChangeRate=${inventoryChangeRate.toFixed(1)}%, dioChange=${dioChange.toFixed(1)}일`);
@@ -259,24 +269,30 @@ export async function POST(request: NextRequest) {
         const dsoChange = turnoverMetric.dso - prevDSO;
         console.log(`dsoChange: ${turnoverMetric.dso} - ${prevDSO} = ${dsoChange}`);
         
-        if (receivablesChangeRate > 0 && dsoChange > 0) {
-          const receivablesScore = calculatePriorityScore(
-            receivablesChangeRate,
-            dsoChange,
-            entityWeight
-          );
-          console.log(`✅ ${entityName} 매출채권 - score: ${receivablesScore}, priority: ${assignPriority(receivablesScore)}`);
-          if (receivablesScore > 0) {
-            allIssues.push({
-              entity: entityName,
-              category: '매출채권',
-              score: receivablesScore,
-              priority: assignPriority(receivablesScore),
-              changeRate: receivablesChangeRate,
-              cccImpact: dsoChange,
-              entityWeight,
-              amountChange: (yoyChange.currentReceivables - yoyChange.prevReceivables) / 100, // 억원
-            });
+        // 매출채권 이슈: 회전일수 악화(+3일 이상) OR 금액 대폭 증가(+15% 이상)
+        if (dsoChange > 3 || receivablesChangeRate > 15) {
+          // 단, 둘 다 크게 개선된 경우는 제외
+          if (!(receivablesChangeRate < -10 && dsoChange < -5)) {
+            const receivablesScore = calculatePriorityScore(
+              Math.max(0, receivablesChangeRate), // 음수는 0으로
+              Math.max(0, dsoChange), // 음수는 0으로
+              entityWeight
+            );
+            console.log(`✅ ${entityName} 매출채권 - score: ${receivablesScore}, priority: ${assignPriority(receivablesScore)}`);
+            if (receivablesScore > 0) {
+              allIssues.push({
+                entity: entityName,
+                category: '매출채권',
+                score: receivablesScore,
+                priority: assignPriority(receivablesScore),
+                changeRate: receivablesChangeRate,
+                cccImpact: dsoChange,
+                entityWeight,
+                amountChange: (yoyChange.currentReceivables - yoyChange.prevReceivables) / 100, // 억원
+              });
+            }
+          } else {
+            console.log(`✅ ${entityName} 매출채권 개선됨: receivablesChangeRate=${receivablesChangeRate.toFixed(1)}%, dsoChange=${dsoChange.toFixed(1)}일`);
           }
         } else {
           console.log(`❌ ${entityName} 매출채권 스킵: receivablesChangeRate=${receivablesChangeRate.toFixed(1)}%, dsoChange=${dsoChange.toFixed(1)}일`);
@@ -307,10 +323,14 @@ export async function POST(request: NextRequest) {
     let filteredIssues: IssueScore[];
     
     if (entity === '연결') {
-      // 연결: 상위 2-3개만 (HIGH/MEDIUM만)
+      // 연결: LOW 제외, 상위 3개만 선택
       filteredIssues = allIssues
         .filter(issue => issue.priority !== 'LOW')
         .slice(0, 3);
+      
+      console.log(`\n🎯 연결 법인 필터링 규칙:`);
+      console.log(`- LOW 우선순위 제외`);
+      console.log(`- 상위 3개만 선택 (점수 순)`);
     } else {
       // 개별 법인: 해당 법인의 이슈만 필터링
       filteredIssues = allIssues.filter(issue => issue.entity === entity);
