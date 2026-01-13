@@ -98,10 +98,10 @@ export async function POST(request: NextRequest) {
         prompt = generateOverviewPrompt(data);
         break;
       case 'turnover':
-        prompt = generateTurnoverPrompt(data);
+        prompt = generateTurnoverPrompt(context || data);
         break;
       case 'trend':
-        prompt = generateTrendPrompt(data);
+        prompt = generateTrendPrompt(context || data);
         break;
       case 'action':
         prompt = generateActionPrompt(data);
