@@ -156,6 +156,9 @@ export default function BulkAIAnalysis({
                       dso: current?.dso || 0,
                       dio: current?.dio || 0,
                       dpo: current?.dpo || 0,
+                      prevDSO: prev?.dso || 0,
+                      prevDIO: prev?.dio || 0,
+                      prevDPO: prev?.dpo || 0,
                     };
                   }),
                 }
@@ -256,6 +259,14 @@ export default function BulkAIAnalysis({
                     wcChange: ((current?.WC || 0) - (prev?.WC || 0)) / (prev?.WC || 1) * 100,
                     currentWC: current?.WC || 0,
                     prevWC: prev?.WC || 0,
+                    currentRevenue: current?.REVENUE_Q || 0,
+                    prevRevenue: prev?.REVENUE_Q || 0,
+                    currentInventory: current?.INVENTORY || 0,
+                    prevInventory: prev?.INVENTORY || 0,
+                    currentReceivables: current?.RECEIVABLES || 0,
+                    prevReceivables: prev?.RECEIVABLES || 0,
+                    currentPayables: current?.PAYABLES || 0,
+                    prevPayables: prev?.PAYABLES || 0,
                   };
                 }),
                 turnoverMetrics: individualEntities.map(entity => {
@@ -268,6 +279,9 @@ export default function BulkAIAnalysis({
                     dso: current?.dso || 0,
                     dio: current?.dio || 0,
                     dpo: current?.dpo || 0,
+                    prevDSO: prev?.dso || 0,
+                    prevDIO: prev?.dio || 0,
+                    prevDPO: prev?.dpo || 0,
                   };
                 }),
               }
