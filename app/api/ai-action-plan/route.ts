@@ -12,6 +12,62 @@ function formatNumber(num: number): string {
   });
 }
 
+// 우선순위 점수 계산 함수
+interface IssueScore {
+  entity: string;
+  category: string; // '재고', '매출채권', '매입채무'
+  score: number;
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  changeRate: number; // 증감률 (%)
+  cccImpact: number; // CCC 영향 (일수)
+  entityWeight: number; // 비중 (%)
+  amountChange: number; // 금액 변화 (억원)
+}
+
+function calculatePriorityScore(
+  changeRate: number, // 증감률 (%)
+  cccImpact: number, // CCC 영향 (일수 변화)
+  entityWeight: number, // 연결 대비 비중 (%)
+): number {
+  // 개선된 항목은 점수 0
+  if (changeRate <= 0 || cccImpact < 0) {
+    return 0;
+  }
+
+  // 1. 증감률 점수 (최대 50점)
+  let changeScore = 0;
+  if (changeRate >= 30) changeScore = 50;
+  else if (changeRate >= 20) changeScore = 40;
+  else if (changeRate >= 10) changeScore = 30;
+  else if (changeRate >= 5) changeScore = 20;
+  else changeScore = 10;
+
+  // 2. CCC 영향 점수 (최대 30점)
+  let cccScore = 0;
+  if (cccImpact >= 40) cccScore = 30;
+  else if (cccImpact >= 30) cccScore = 25;
+  else if (cccImpact >= 20) cccScore = 20;
+  else if (cccImpact >= 10) cccScore = 15;
+  else if (cccImpact >= 5) cccScore = 10;
+  else cccScore = 5;
+
+  // 3. 비중 점수 (최대 20점)
+  let weightScore = 0;
+  if (entityWeight >= 30) weightScore = 20;
+  else if (entityWeight >= 20) weightScore = 15;
+  else if (entityWeight >= 10) weightScore = 10;
+  else if (entityWeight >= 5) weightScore = 5;
+  else weightScore = 0;
+
+  return changeScore + cccScore + weightScore;
+}
+
+function assignPriority(score: number): 'HIGH' | 'MEDIUM' | 'LOW' {
+  if (score >= 80) return 'HIGH';
+  if (score >= 50) return 'MEDIUM';
+  return 'LOW';
+}
+
 // OpenAI 클라이언트를 lazy하게 초기화
 function getOpenAIClient() {
   return new OpenAI({
@@ -97,21 +153,172 @@ export async function POST(request: NextRequest) {
       } : undefined,
     };
 
-    // 법인별 액션플랜 개수 가이드
-    const actionCountGuide = entity === '연결' 
-      ? '5-6개 (국내, 중국, 홍콩 중심 + ST 또는 기타 추가)'
-      : entity === '국내(OC)' || entity === '중국' || entity === '홍콩'
-      ? '2-3개 (비중이 큰 법인이므로 상세하게)'
-      : '1-2개 (비중이 작은 법인이므로 간단히)';
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 📊 STEP 1: 전체 법인의 모든 이슈 점수화
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const allIssues: IssueScore[] = [];
+    
+    // 연결 WC를 기준으로 비중 계산
+    const consolidatedWC = data.wcData?.find((d: any) => 
+      d.QUARTER === data.currentQuarter && d.ENTITY === '연결'
+    )?.WC || 1;
 
-    const prompt = `당신은 F&F 그룹의 재무 분석 전문가입니다. 
+    // 각 법인별로 이슈 점수화
+    if (data.summary?.yoyChanges && data.summary?.turnoverMetrics) {
+      for (const yoyChange of data.summary.yoyChanges) {
+        const entityName = yoyChange.entity;
+        const turnoverMetric = data.summary.turnoverMetrics.find(
+          (t: any) => t.entity === entityName
+        );
 
-📌 **분석 대상: ${entity}**
-📌 **액션플랜 개수: ${actionCountGuide}**
+        if (!turnoverMetric) continue;
+
+        // 연결 대비 비중 계산
+        const entityWeight = (yoyChange.currentWC / consolidatedWC) * 100;
+
+        // 재고 이슈 점수화
+        const inventoryChangeRate = yoyChange.prevInventory > 0
+          ? ((yoyChange.currentInventory - yoyChange.prevInventory) / yoyChange.prevInventory) * 100
+          : 0;
+        
+        // prevDIO 계산: turnoverMetric.prevDIO가 없으면 prev 데이터에서 계산
+        let prevDIO = turnoverMetric.prevDIO;
+        if (!prevDIO) {
+          const prevTurnover = data.turnoverData?.find(
+            (t: any) => t.quarter === data.previousQuarter && t.entity === entityName
+          );
+          prevDIO = prevTurnover?.dio || 0;
+        }
+        const dioChange = turnoverMetric.dio - prevDIO;
+        
+        if (inventoryChangeRate > 0 && dioChange > 0) {
+          const inventoryScore = calculatePriorityScore(
+            inventoryChangeRate,
+            dioChange,
+            entityWeight
+          );
+          if (inventoryScore > 0) {
+            allIssues.push({
+              entity: entityName,
+              category: '재고',
+              score: inventoryScore,
+              priority: assignPriority(inventoryScore),
+              changeRate: inventoryChangeRate,
+              cccImpact: dioChange,
+              entityWeight,
+              amountChange: (yoyChange.currentInventory - yoyChange.prevInventory) / 100, // 억원
+            });
+          }
+        }
+
+        // 매출채권 이슈 점수화
+        const receivablesChangeRate = yoyChange.prevReceivables > 0
+          ? ((yoyChange.currentReceivables - yoyChange.prevReceivables) / yoyChange.prevReceivables) * 100
+          : 0;
+        
+        // prevDSO 계산: turnoverMetric.prevDSO가 없으면 prev 데이터에서 계산
+        let prevDSO = turnoverMetric.prevDSO;
+        if (!prevDSO) {
+          const prevTurnover = data.turnoverData?.find(
+            (t: any) => t.quarter === data.previousQuarter && t.entity === entityName
+          );
+          prevDSO = prevTurnover?.dso || 0;
+        }
+        const dsoChange = turnoverMetric.dso - prevDSO;
+        
+        if (receivablesChangeRate > 0 && dsoChange > 0) {
+          const receivablesScore = calculatePriorityScore(
+            receivablesChangeRate,
+            dsoChange,
+            entityWeight
+          );
+          if (receivablesScore > 0) {
+            allIssues.push({
+              entity: entityName,
+              category: '매출채권',
+              score: receivablesScore,
+              priority: assignPriority(receivablesScore),
+              changeRate: receivablesChangeRate,
+              cccImpact: dsoChange,
+              entityWeight,
+              amountChange: (yoyChange.currentReceivables - yoyChange.prevReceivables) / 100, // 억원
+            });
+          }
+        }
+      }
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 📊 STEP 2: 점수 순으로 정렬
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    allIssues.sort((a, b) => b.score - a.score);
+
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📊 전체 법인 이슈 점수화 결과:');
+    allIssues.forEach((issue, index) => {
+      console.log(`${index + 1}위. ${issue.entity} ${issue.category}: ${issue.score}점 → ${issue.priority}`);
+      console.log(`   증감률 ${issue.changeRate.toFixed(1)}%, CCC 영향 ${issue.cccImpact.toFixed(0)}일, 비중 ${issue.entityWeight.toFixed(1)}%`);
+    });
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 📊 STEP 3: 필터링
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    let filteredIssues: IssueScore[];
+    
+    if (entity === '연결') {
+      // 연결: 상위 2-3개만 (HIGH/MEDIUM만)
+      filteredIssues = allIssues
+        .filter(issue => issue.priority !== 'LOW')
+        .slice(0, 3);
+    } else {
+      // 개별 법인: 해당 법인의 이슈만 필터링
+      filteredIssues = allIssues.filter(issue => issue.entity === entity);
+    }
+
+    console.log(`\n📌 ${entity} 법인 필터링 결과:`);
+    filteredIssues.forEach((issue, index) => {
+      console.log(`${index + 1}. ${issue.entity} ${issue.category}: ${issue.priority} (전체 ${allIssues.indexOf(issue) + 1}위, ${issue.score}점)`);
+    });
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+    const prompt = `당신은 F&F 그룹의 재무 분석 전문가입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 분석 대상: ${entity}
+📌 우선순위는 이미 계산되어 제공됩니다 - 그대로 사용하세요!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 **당신이 할 일:**
+1. 아래 제공된 우선순위 정보를 **그대로** 사용하세요
+2. 각 이슈에 대해 상세한 분석과 액션플랜을 작성하세요
+3. **우선순위를 변경하거나 재계산하지 마세요!**
+
+📊 **제공된 우선순위 정보:**
+${filteredIssues.length === 0 
+  ? `⚠️ ${entity} 법인에는 악화된 이슈가 없습니다. (모두 개선되었거나 유지 중)
+
+improvementDirection에 개선된 상황을 간단히 설명하고, actionItems는 빈 배열 []로 반환하세요.`
+  : filteredIssues.map((issue, index) => 
+      `${index + 1}. **${issue.entity} ${issue.category}** (전체 ${allIssues.indexOf(issue) + 1}위)
+   - priority: "${issue.priority}"
+   - 증감률: ${issue.changeRate.toFixed(1)}%
+   - CCC 영향: ${issue.cccImpact.toFixed(0)}일
+   - 금액 변화: ${formatNumber(issue.amountChange * 100)}억원
+   - 연결 대비 비중: ${issue.entityWeight.toFixed(1)}%
+   → 이 우선순위를 그대로 사용하세요!`
+    ).join('\n\n')
+}
 
 ${entity === '연결' 
-  ? '연결 기준으로 전체 법인의 종합 분석을 수행하되, 비중이 큰 국내(OC), 중국, 홍콩 법인의 주요 이슈를 중심으로 액션플랜을 작성하세요.'
-  : `${entity} 법인에만 집중하여 분석하고, 해당 법인의 핵심 이슈에 대한 액션플랜을 작성하세요.`
+  ? `\n🔴 **연결 법인 특별 지침:**
+- 위 ${filteredIssues.length}개 항목만 액션플랜에 포함하세요
+- 더 추가하거나 제외하지 마세요
+- 각 항목의 priority는 이미 결정되었습니다`
+  : `\n🔵 **${entity} 법인 특별 지침:**
+- 위 ${filteredIssues.length}개 항목만 액션플랜에 포함하세요
+- priority는 전체 법인 기준으로 이미 결정되었습니다
+- 변경하지 말고 그대로 사용하세요`
 }
 
 ⚠️ **숫자 사용 규칙 (절대 준수):**
@@ -299,165 +506,22 @@ ${entity === '연결'
    - 출처가 불분명한 벤치마크 수치 언급 금지
    - 구체적인 목표 일수나 금액은 경영진 결정 사항임을 인지
 
-데이터: ${JSON.stringify(data)}
-
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚨🚨🚨 절대적인 규칙 - 이 규칙을 위반하면 분석 전체가 무효입니다 🚨🚨🚨
+🎯 작성 가이드
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**❌ 절대 금지 (이렇게 하지 마세요!):**
+**❌ 절대 금지:**
+- 우선순위 변경 또는 재계산
+- 제공된 항목 추가 또는 제외
+- 점수 언급 (내부 계산이므로 숨김)
 
-1. ❌ **개별 법인 내에서만 우선순위 결정**
-   - 나쁜 예: 국내(OC) 법인 분석 시 "국내에서 가장 중요하니 HIGH"
-   - 나쁜 예: 홍콩 법인 분석 시 "홍콩에서 제일 문제니 HIGH"
+**✅ 반드시 할 것:**
+- 제공된 priority를 그대로 사용
+- 제공된 항목 수만큼만 작성
+- 전년동기 대비, 전분기 대비 분석
+- 구체적이고 실행 가능한 액션 제시
 
-2. ❌ **연결 법인에서 법인별로 하나씩 포함**
-   - 나쁜 예: 국내 1개 + 중국 1개 + 홍콩 1개 + ST 1개
-   
-3. ❌ **연결 법인에 LOW 우선순위 포함**
-   - 나쁜 예: 연결 액션플랜에 "LOW: 홍콩 재고" 포함
-
-4. ❌ **법인 규모에 따라 자동으로 HIGH 부여**
-   - 나쁜 예: "국내는 규모가 크니 무조건 HIGH"
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ 반드시 따라야 할 3단계 프로세스
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-⚠️ **주의: 당신은 지금 "${entity}" 법인을 분석하고 있지만, 
-반드시 전체 법인(국내, 중국, 홍콩, ST, 기타)의 모든 이슈를 먼저 점수화해야 합니다!**
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-**STEP 1: 전체 법인의 모든 악화 이슈 점수화 (필수!)**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-데이터에서 **모든 법인(국내, 중국, 홍콩, ST, 기타)**의 **모든 악화 이슈**를 찾아 점수화:
-
-[점수 계산 공식]
-점수 = 증감률 점수(최대 50점) + CCC 영향 점수(최대 30점) + 비중 점수(최대 20점)
-
-**증감률 점수 (악화만):**
-- +30% 이상 악화: 50점
-- +20~30% 악화: 40점
-- +10~20% 악화: 30점
-- +5~10% 악화: 20점
-- ±5% 이내: 10점
-- 개선(-): 점수 0점 → 액션플랜 제외!
-
-**CCC 영향 점수 (증가만):**
-- +40일 이상: 30점
-- +30~40일: 25점
-- +20~30일: 20점
-- +10~20일: 15점
-- +5~10일: 10점
-- ±5일 이내: 5점
-- 단축(-): 점수 0점 → 액션플랜 제외!
-
-**비중 점수:**
-- 연결 대비 30% 이상: 20점
-- 20~30%: 15점
-- 10~20%: 10점
-- 5~10%: 5점
-- 5% 미만: 0점
-
-예시:
-- 국내(OC) 재고: +2% 악화(10점) + DIO +27일(20점) + 비중 35%(20점) = 50점
-- 중국 재고: +51% 악화(50점) + DIO +39일(25점) + 비중 35%(20점) = 95점
-- 중국 매출채권: +19% 악화(30점) + DSO +2일(5점) + 비중 35%(20점) = 55점
-- 홍콩 재고: +9% 악화(20점) + DIO +1일(5점) + 비중 4%(0점) = 25점
-- ST 재고: +142% 악화(50점) + DIO +258일(30점) + 비중 3%(5점) = 85점
-
-⚠️ **체크리스트:**
-- [ ] 모든 법인의 모든 악화 이슈를 점수화했나요?
-- [ ] 개선된 이슈는 제외했나요?
-- [ ] 점수 계산이 정확한가요?
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-**STEP 2: 전체 이슈를 점수 순으로 정렬하고 우선순위 결정**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-STEP 1의 모든 이슈를 점수 순으로 정렬:
-
-1위. 중국 재고: 95점 → **HIGH**
-2위. ST 재고: 85점 → **HIGH**
-3위. 중국 매출채권: 55점 → **MEDIUM**
-4위. 국내 재고: 50점 → **MEDIUM**
-5위. 홍콩 재고: 25점 → **LOW**
-
-**우선순위 배분 규칙:**
-- 80점 이상: HIGH
-- 50-79점: MEDIUM
-- 50점 미만: LOW
-- 5점 이내 유사 점수는 같은 레벨
-
-⚠️ **체크리스트:**
-- [ ] 모든 이슈가 점수 순으로 정렬되었나요?
-- [ ] HIGH/MEDIUM/LOW가 점수 기준으로 결정되었나요?
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-**STEP 3: 필터링 및 출력**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-${entity === '연결' 
-   ? `
-**연결 법인 출력 규칙:**
-
-✅ **STEP 2에서 상위 2-3개만 선택 (HIGH/MEDIUM만)**
-✅ **점수가 가장 높은 이슈부터 선택**
-❌ **LOW 우선순위는 절대 포함 금지**
-❌ **법인별로 하나씩 포함하려고 하지 마세요**
-
-예시:
-1위 중국 재고 (HIGH) → ✅ 포함
-2위 ST 재고 (HIGH) → ✅ 포함
-3위 중국 매출채권 (MEDIUM) → ✅ 포함
-4위 국내 재고 (MEDIUM) → ❌ 상위 3개만 선택하므로 제외
-5위 홍콩 재고 (LOW) → ❌ LOW는 연결에 포함 금지
-
-⚠️ **연결 법인 체크리스트:**
-- [ ] 2-3개만 선택했나요?
-- [ ] 모두 HIGH 또는 MEDIUM인가요?
-- [ ] LOW가 포함되지 않았나요?
-- [ ] 점수 순으로 선택했나요? (법인별 균형 X)
-`
-   : `
-**"${entity}" 법인 출력 규칙:**
-
-✅ **STEP 2의 전체 순위에서 "${entity}" 법인의 이슈만 필터링**
-✅ **우선순위는 STEP 2의 전체 순위 그대로 사용**
-❌ **"${entity}" 법인 내에서 다시 우선순위 결정하지 마세요**
-
-예시 (국내(OC) 법인):
-전체 순위:
-1위. 중국 재고 (HIGH)
-2위. ST 재고 (HIGH)
-3위. 중국 매출채권 (MEDIUM)
-4위. **국내 재고 (MEDIUM)** ← 이것만 필터링
-5위. 홍콩 재고 (LOW)
-
-→ 국내(OC) 액션플랜: **국내 재고 (MEDIUM)**
-
-❌ **잘못된 예:** "국내에서 가장 중요하니 HIGH" (절대 금지!)
-✅ **올바른 예:** "전체 4위이므로 MEDIUM"
-
-⚠️ **개별 법인 체크리스트:**
-- [ ] "${entity}" 법인의 이슈만 포함했나요?
-- [ ] 우선순위가 STEP 2의 전체 순위와 동일한가요?
-- [ ] "${entity}" 법인 내에서 다시 결정하지 않았나요?
-`
-}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-⚠️ **최종 확인 사항:**
-- [ ] STEP 1, 2, 3를 순서대로 수행했나요?
-- [ ] 개별 법인 분석 시에도 전체 법인 점수를 먼저 계산했나요?
-- [ ] 우선순위가 전체 기준에서 결정되었나요?
-- [ ] 연결 법인은 상위 2-3개만 선택했나요?
-- [ ] 연결 법인에 LOW가 없나요?
-- [ ] 점수를 응답에 포함하지 않았나요?
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+데이터: ${JSON.stringify(formattedData, null, 2)}
 📋 JSON 응답 형식
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -587,75 +651,29 @@ ${entity === '국내(OC)'
 ${JSON.stringify(formattedData, null, 2)}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚨🚨🚨 최종 알림: 이 규칙을 어기면 분석이 무효입니다! 🚨🚨🚨
+📝 JSON 응답 형식
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-${entity === '연결' 
-  ? `
-**연결 법인 분석 중 - 필수 준수 사항:**
-
-✅ **반드시 할 것:**
-1. 전체 법인(국내, 중국, 홍콩, ST, 기타)의 모든 악화 이슈를 점수화
-2. 점수 순으로 정렬 (1위, 2위, 3위, 4위, 5위...)
-3. **상위 2-3개만 선택** (점수 순서대로)
-4. 선택된 항목만 actionItems에 포함
-
-❌ **절대 하지 말 것:**
-1. 법인별로 하나씩 균형있게 선택하려고 하지 마세요
-2. LOW 우선순위를 포함하지 마세요
-3. 4위 이하는 포함하지 마세요
-
-**올바른 예시:**
-1위. 중국 재고 (95점, HIGH) → ✅ 포함
-2위. ST 재고 (85점, HIGH) → ✅ 포함
-3위. 중국 매출채권 (55점, MEDIUM) → ✅ 포함
-4위. 국내 재고 (50점, MEDIUM) → ❌ 상위 3개만
-5위. 홍콩 재고 (25점, LOW) → ❌ LOW는 연결에서 제외
-
-**잘못된 예시 (절대 금지!):**
-- 국내 1개 + 중국 1개 + 홍콩 1개 = ❌
-- HIGH 2개 + MEDIUM 1개 + LOW 1개 = ❌
-`
-  : `
-**"${entity}" 법인 분석 중 - 필수 준수 사항:**
-
-✅ **반드시 할 것:**
-1. **전체 법인(국내, 중국, 홍콩, ST, 기타)의 모든 악화 이슈를 점수화**
-   - ⚠️ ${entity} 법인만 분석하는 것이 아닙니다!
-2. 점수 순으로 정렬 (1위, 2위, 3위, 4위, 5위...)
-3. **${entity} 법인의 이슈만 필터링**
-4. **우선순위는 전체 순위 그대로 사용** (${entity} 내에서 다시 결정하지 마세요!)
-
-❌ **절대 하지 말 것:**
-1. "${entity} 법인에서 가장 중요하니 HIGH" ← ❌
-2. "${entity} 법인에서 제일 문제니 HIGH" ← ❌
-3. ${entity} 법인 내에서만 우선순위 비교 ← ❌
-
-**올바른 예시 (국내(OC) 법인의 경우):**
-전체 순위:
-1위. 중국 재고 (95점, HIGH)
-2위. ST 재고 (85점, HIGH)
-3위. 중국 매출채권 (55점, MEDIUM)
-4위. **국내 재고 (50점, MEDIUM)** ← 이것만
-5위. 홍콩 재고 (25점, LOW)
-
-→ 국내(OC) actionItems: [{ priority: "MEDIUM", label: "재고", ... }]
-
-**잘못된 예시 (절대 금지!):**
-→ 국내(OC) actionItems: [{ priority: "HIGH", label: "재고", ... }] ← ❌
-   (국내 재고는 전체 4위이므로 MEDIUM이어야 함!)
-`
+다음 형식의 JSON 객체만 반환하세요:
+{
+  "improvementDirection": "전반적인 개선 방향 텍스트...",
+  "actionItems": [
+    {
+      "priority": "제공된 우선순위 그대로", 
+      "label": "항목명",
+      "issue": "상세 설명",
+      "action": "구체적 액션",
+      "target": "목표",
+      "responsible": "담당"
+    }
+  ]
 }
 
-**중요**: 
-1. 위 formattedData의 **모든 금액 필드는 이미 포맷팅**되어 있습니다
-2. 예시:
-   - wcData[].WC가 "408.3"이면 → "408.3억원"
-   - wcData[].RECEIVABLES가 "1,424.2"이면 → "1,424.2억원"
-   - summary.yoyChanges[].currentWC가 "214.2"이면 → "214.2억원"
-3. **숫자를 절대 변환하거나 곱하지 마세요**
-4. turnoverData의 dso, dio, dpo, ccc는 일수이므로 "일"만 붙이세요 (예: dso가 65이면 → "65일")
-5. 오직 JSON 객체만 반환하고, 다른 텍스트는 포함하지 마세요`;
+⚠️ **마지막 체크:**
+- [ ] 제공된 priority를 그대로 사용했나요?
+- [ ] 제공된 ${filteredIssues.length}개 항목만 작성했나요?
+- [ ] 점수를 응답에 포함하지 않았나요?
+- [ ] JSON 형식이 올바른가요?`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
