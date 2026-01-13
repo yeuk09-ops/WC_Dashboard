@@ -318,14 +318,14 @@ export default function Dashboard() {
             <div className="col-span-2 bg-white rounded-lg p-5 shadow-sm border border-slate-200">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-slate-800">연결 운전자본 추이</h3>
-                <div className="flex gap-2">
+          <div className="flex gap-2">
                   {[
                     { key: 'all', label: '전체', color: '#94a3b8' },
                     { key: 'ar', label: '채고', color: colors.inventory },
                     { key: 'inv', label: '채권', color: colors.receivables },
                     { key: 'ap', label: '채무', color: colors.payables },
                     { key: 'wc', label: 'WC', color: colors.wc }
-                  ].map(item => (
+            ].map(item => (
                     <button
                       key={item.key}
                       onClick={() => {
@@ -342,10 +342,10 @@ export default function Dashboard() {
                         color: showItems[item.key as keyof typeof showItems] ? 'white' : '#64748b'
                       }}
                     >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
+                {item.label}
+              </button>
+            ))}
+          </div>
               </div>
               <ResponsiveContainer width="100%" height={280}>
                 <ComposedChart data={consolidatedTrend}>
@@ -387,7 +387,7 @@ export default function Dashboard() {
                     </Pie>
                     <Tooltip formatter={(v: number) => [`${v}억`, '']} />
                   </PieChart>
-                </ResponsiveContainer>
+              </ResponsiveContainer>
                 <div className="mt-3 space-y-1">
                   {pieData.map((item, idx) => (
                     <div key={idx} className="flex items-center justify-between text-xs">
@@ -745,7 +745,7 @@ export default function Dashboard() {
               
               return (
                 <div key={item.label} className="bg-white rounded-lg p-5 shadow-sm border-2" style={{ borderColor: entityColors[selectedEntity] }}>
-                  <div className="text-sm text-slate-500 mb-1">{item.desc}</div>
+                <div className="text-sm text-slate-500 mb-1">{item.desc}</div>
                   <div className="text-xs text-slate-400 mb-2">{item.label}</div>
                   <div className="flex items-baseline gap-2">
                     <div className="text-3xl font-bold" style={{ color: entityColors[selectedEntity] }}>
@@ -760,7 +760,7 @@ export default function Dashboard() {
                   }`}>
                     YoY {change > 0 ? '+' : ''}{change}
                   </div>
-                </div>
+              </div>
               );
             })}
           </div>
@@ -770,7 +770,7 @@ export default function Dashboard() {
             {/* CCC 추이 */}
             <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
               <h3 className="font-semibold text-slate-800 mb-4">CCC 추이</h3>
-              <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={cccTrendData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="quarter" tick={{ fontSize: 11 }} />
@@ -790,14 +790,14 @@ export default function Dashboard() {
                       hide={e === '연결' && !showConsolidated}
                     />
                   ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
 
             {/* 법인별 회전율수 비교 (레이더) */}
             <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
               <h3 className="font-semibold text-slate-800 mb-4">법인별 회전율수 비교 (25.3Q)</h3>
-              <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={300}>
                 <RadarChart data={selectedTurnover && consolidatedTurnover ? [
                   { metric: 'DSO', value: selectedTurnover.dso, consolidatedValue: consolidatedTurnover.dso },
                   { metric: 'DIO', value: selectedTurnover.dio, consolidatedValue: consolidatedTurnover.dio },
@@ -829,9 +829,9 @@ export default function Dashboard() {
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Tooltip />
                 </RadarChart>
-              </ResponsiveContainer>
-            </div>
+            </ResponsiveContainer>
           </div>
+        </div>
 
           {/* YoY 비교 분석 + AI 인사이트 */}
           <div className="grid grid-cols-2 gap-6">
@@ -845,17 +845,17 @@ export default function Dashboard() {
               const prevTurn = turnoverData.find(t => t.quarter === prevYear && t.entity === selectedEntity);
               if (!current || !prev || !currentTurn || !prevTurn) return null;
               const metrics = [
-                { label: '매출', current: current.REVENUE_Q, prev: prev.REVENUE_Q, isGoodWhenUp: true },
-                { label: '매출원가', current: current.COGS_Q, prev: prev.COGS_Q, isGoodWhenUp: false },
-                { label: '매출채권', current: current.RECEIVABLES, prev: prev.RECEIVABLES, isGoodWhenUp: false },
-                { label: '재고자산', current: current.INVENTORY, prev: prev.INVENTORY, isGoodWhenUp: false },
-                { label: '매입채무', current: current.PAYABLES, prev: prev.PAYABLES, isGoodWhenUp: true }
+                { label: '매출', current: current.REVENUE_Q || 0, prev: prev.REVENUE_Q || 0, isGoodWhenUp: true },
+                { label: '매출원가', current: current.COGS_Q || 0, prev: prev.COGS_Q || 0, isGoodWhenUp: false },
+                { label: '매출채권', current: current.RECEIVABLES || 0, prev: prev.RECEIVABLES || 0, isGoodWhenUp: false },
+                { label: '재고자산', current: current.INVENTORY || 0, prev: prev.INVENTORY || 0, isGoodWhenUp: false },
+                { label: '매입채무', current: current.PAYABLES || 0, prev: prev.PAYABLES || 0, isGoodWhenUp: true }
               ];
               const turnovers = [
-                { label: 'DSO', current: currentTurn.dso, prev: prevTurn.dso, isGoodWhenUp: false },
-                { label: 'DIO', current: currentTurn.dio, prev: prevTurn.dio, isGoodWhenUp: false },
-                { label: 'DPO', current: currentTurn.dpo, prev: prevTurn.dpo, isGoodWhenUp: true },
-                { label: 'CCC', current: currentTurn.ccc, prev: prevTurn.ccc, isGoodWhenUp: false }
+                { label: 'DSO', current: currentTurn.dso || 0, prev: prevTurn.dso || 0, isGoodWhenUp: false },
+                { label: 'DIO', current: currentTurn.dio || 0, prev: prevTurn.dio || 0, isGoodWhenUp: false },
+                { label: 'DPO', current: currentTurn.dpo || 0, prev: prevTurn.dpo || 0, isGoodWhenUp: true },
+                { label: 'CCC', current: currentTurn.ccc || 0, prev: prevTurn.ccc || 0, isGoodWhenUp: false }
               ];
               return (
                 <div className="space-y-4">
@@ -1120,11 +1120,11 @@ export default function Dashboard() {
                   </div>
                   <div className="text-xs text-slate-700 mb-1">{item.meaning}</div>
                   <div className={`text-xs font-medium text-${item.color}-700`}>{item.action}</div>
-                </div>
-              ))}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        </div>
+                  </div>
       )}
 
       {/* 추세 탭 */}
@@ -1143,8 +1143,8 @@ export default function Dashboard() {
               >
                 {e}
               </button>
-            ))}
-          </div>
+                ))}
+              </div>
 
           {/* 차트 그리드 */}
           <div className="grid grid-cols-2 gap-6">
@@ -1259,7 +1259,7 @@ export default function Dashboard() {
                   <Line type="monotone" dataKey="CCC" stroke={entityColors[selectedEntity]} strokeWidth={3} dot={{ r: 5, fill: entityColors[selectedEntity] }} />
                 </LineChart>
               </ResponsiveContainer>
-            </div>
+          </div>
           </div>
 
           {/* AI 액션플랜 (개선목표) */}
@@ -1317,49 +1317,6 @@ export default function Dashboard() {
                       dio: turnoverData.find(t => t.quarter === latestQuarter && t.entity === selectedEntity)?.dio || 0,
                       dpo: turnoverData.find(t => t.quarter === latestQuarter && t.entity === selectedEntity)?.dpo || 0,
                     }],
-              }
-            }}
-          />
-        </div>
-      )}
-
-      {/* 액션플랜 탭 */}
-      {activeTab === 3 && (
-        <div className="space-y-6">
-          {/* AI 생성 액션플랜 */}
-          <AIActionPlan
-            quarter={latestQuarter}
-            data={{
-              wcData: wcData,
-              turnoverData: turnoverData,
-              currentQuarter: latestQuarter,
-              previousQuarter: prevYear,
-              entities: entities,
-              summary: {
-                totalWC: wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === '연결')?.WC || 0,
-                avgCCC: turnoverData.find(t => t.quarter === latestQuarter && t.entity === '연결')?.ccc || 0,
-                yoyChanges: entities.slice(0, -1).map(entity => {
-                  const current = wcData.find(d => d.QUARTER === latestQuarter && d.ENTITY === entity);
-                  const prev = wcData.find(d => d.QUARTER === prevYear && d.ENTITY === entity);
-                  return {
-                    entity,
-                    wcChange: ((current?.WC || 0) - (prev?.WC || 0)) / (prev?.WC || 1) * 100,
-                    currentWC: current?.WC || 0,
-                    prevWC: prev?.WC || 0,
-                  };
-                }),
-                turnoverMetrics: entities.slice(0, -1).map(entity => {
-                  const current = turnoverData.find(t => t.quarter === latestQuarter && t.entity === entity);
-                  const prev = turnoverData.find(t => t.quarter === prevYear && t.entity === entity);
-                  return {
-                    entity,
-                    currentCCC: current?.ccc || 0,
-                    prevCCC: prev?.ccc || 0,
-                    dso: current?.dso || 0,
-                    dio: current?.dio || 0,
-                    dpo: current?.dpo || 0,
-                  };
-                }),
               }
             }}
           />

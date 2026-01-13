@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { loadAICache, updateAICachePartial } from '@/lib/ai-cache';
+import { loadAICache, updateAICachePartial, AIAnalysisCache } from '@/lib/ai-cache';
 
 // 숫자 포맷팅 함수 - 100만원 단위를 억원으로 변환 + 천단위 쉼표 추가
 function formatNumber(num: number): string {
@@ -420,7 +420,7 @@ ${JSON.stringify(formattedData, null, 2)}
     const actionItems = result.actionItems || [];
 
     // 캐시에 법인별로 저장
-    const cache = loadAICache(quarter) || {};
+    const cache: AIAnalysisCache = loadAICache(quarter) || { quarter, generatedAt: new Date().toISOString() };
     const actionPlanCache = cache.actionPlan || {};
     actionPlanCache[entity] = { improvementDirection, actionItems };
     updateAICachePartial(quarter, 'actionPlan', actionPlanCache);

@@ -12,7 +12,7 @@ export interface AIAnalysisCache {
   overview?: string;
   turnover?: Record<string, string>; // entity별 분석
   trend?: Record<string, string>; // entity별 분석
-  actionPlan?: any[];
+  actionPlan?: Record<string, { improvementDirection: string; actionItems: any[] }>; // entity별 액션플랜
   actionPlanInsight?: string;
 }
 
