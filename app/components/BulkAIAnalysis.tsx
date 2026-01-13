@@ -112,7 +112,7 @@ export default function BulkAIAnalysis({
             })
           });
 
-          // 2) 액션플랜 분석 (해당 법인만)
+          // 2) 액션플랜 분석 (전체 법인 데이터 전달, 해당 법인만 필터링)
           await fetch('/api/ai-action-plan', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -120,28 +120,44 @@ export default function BulkAIAnalysis({
               quarter: currentQuarter,
               selectedEntity: entity,
               data: {
-                wcData: entityWCData,
-                turnoverData: entityTurnoverData,
+                wcData: wcData, // 전체 법인 데이터
+                turnoverData: turnoverData, // 전체 법인 데이터
                 currentQuarter,
                 previousQuarter,
-                entities: [entity], // 해당 법인만
+                entities: entities, // 전체 법인 리스트
                 summary: {
-                  totalWC: currentWC?.WC || 0,
-                  avgCCC: currentTurnover?.ccc || 0,
-                  yoyChanges: [{
-                    entity,
-                    wcChange: ((currentWC?.WC || 0) - (prevWC?.WC || 0)) / (prevWC?.WC || 1) * 100,
-                    currentWC: currentWC?.WC || 0,
-                    prevWC: prevWC?.WC || 0,
-                  }],
-                  turnoverMetrics: [{
-                    entity,
-                    currentCCC: currentTurnover?.ccc || 0,
-                    prevCCC: prevTurnover?.ccc || 0,
-                    dso: currentTurnover?.dso || 0,
-                    dio: currentTurnover?.dio || 0,
-                    dpo: currentTurnover?.dpo || 0,
-                  }],
+                  totalWC: wcData.find(d => d.QUARTER === currentQuarter && d.ENTITY === '연결')?.WC || 0,
+                  avgCCC: turnoverData.find(t => t.quarter === currentQuarter && t.entity === '연결')?.ccc || 0,
+                  yoyChanges: entities.slice(0, -1).map(eName => {
+                    const current = wcData.find(d => d.QUARTER === currentQuarter && d.ENTITY === eName);
+                    const prev = wcData.find(d => d.QUARTER === previousQuarter && d.ENTITY === eName);
+                    return {
+                      entity: eName,
+                      wcChange: ((current?.WC || 0) - (prev?.WC || 0)) / (prev?.WC || 1) * 100,
+                      currentWC: current?.WC || 0,
+                      prevWC: prev?.WC || 0,
+                      currentRevenue: current?.REVENUE_Q || 0,
+                      prevRevenue: prev?.REVENUE_Q || 0,
+                      currentInventory: current?.INVENTORY || 0,
+                      prevInventory: prev?.INVENTORY || 0,
+                      currentReceivables: current?.RECEIVABLES || 0,
+                      prevReceivables: prev?.RECEIVABLES || 0,
+                      currentPayables: current?.PAYABLES || 0,
+                      prevPayables: prev?.PAYABLES || 0,
+                    };
+                  }),
+                  turnoverMetrics: entities.slice(0, -1).map(eName => {
+                    const current = turnoverData.find(t => t.quarter === currentQuarter && t.entity === eName);
+                    const prev = turnoverData.find(t => t.quarter === previousQuarter && t.entity === eName);
+                    return {
+                      entity: eName,
+                      currentCCC: current?.ccc || 0,
+                      prevCCC: prev?.ccc || 0,
+                      dso: current?.dso || 0,
+                      dio: current?.dio || 0,
+                      dpo: current?.dpo || 0,
+                    };
+                  }),
                 }
               },
               forceRegenerate: true
